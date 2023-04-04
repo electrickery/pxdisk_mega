@@ -209,7 +209,7 @@ void setup()
 
   File root = SD.open("/");
   DEBUGPORT.println("Root directory:");
-  printDirectory(root, 0, false);
+  printDirectory(root, 4, false);
   
   digitalWrite(D_LED, LOW);
   digitalWrite(E_LED, LOW);
@@ -242,11 +242,12 @@ bool diskReadSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, u
 {
   bool rtn = true;
   uint8_t device = unit * 2 + disk;
-//  File dsk = SD.open(diskNames[device], FILE_READ);
-  File dsk = SD.open(diskNames[device], (O_READ | O_WRITE | O_CREAT));
+  File dsk = SD.open(diskNames[device], FILE_READ);
   setLEDs(device);
 #if DEBUG
+  DEBUGPORT.write("R:");
   DEBUGPORT.println(diskNames[device]);
+  DEBUGPORT.println(PXPORT.available());
 #endif
   if(dsk)
   {
@@ -291,7 +292,8 @@ bool diskWriteSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, 
 {
   bool rtn = true;
   uint8_t device = unit * 2 + disk;
-  File dsk = SD.open(diskNames[device], FILE_WRITE);
+//  File dsk = SD.open(diskNames[device], FILE_WRITE);
+  File dsk = SD.open(diskNames[device], O_READ | O_WRITE | O_CREAT);
   setLEDs(device);
   if(dsk)
   {
@@ -547,11 +549,11 @@ void sendText()
       sendByte(byt);
       cks -= byt;
 
-#if NOTDEBUG
-      if(i % 64 == 0) DEBUGPORT.println();
-      showHex(textBuffer[i]);
-      DEBUGPORT.write((byt & 0x7f));
-#endif
+//#if NOTDEBUG
+//      if(i % 64 == 0) DEBUGPORT.println();
+//      showHex(textBuffer[i]);
+//      DEBUGPORT.write((byt & 0x7f));
+//#endif
 
     }
     sendByte(returnCode);  // return code
@@ -592,9 +594,9 @@ void sendText()
   cks -= C_ETX;
   sendByte(cks);
   
-#if DEBUG
-  DEBUGPORT.println(cks);
-#endif
+//#if DEBUG
+//  DEBUGPORT.println(cks);
+//#endif
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -898,9 +900,9 @@ void stateMachine(uint8_t b)
     break;
     
   }
-#if DEBUG
-  DEBUGPORT.println(state);
-#endif
+//#if DEBUG
+//  DEBUGPORT.println(state);
+//#endif
 }
 
 //////////////////////////////////////////////////////////////////////////////
