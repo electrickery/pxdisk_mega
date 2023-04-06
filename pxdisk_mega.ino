@@ -25,6 +25,8 @@ void setup()
 {
 #if DEBUG
   DEBUGPORT.begin(DEBUGBAUDRATE);
+  DEBUGPORT.println();
+  DEBUGPORT.println();
   DEBUGPORT.print("Beginning PFBDK_mega ");
   DEBUGPORT.print(MAJOR_VERSION);
   DEBUGPORT.print(".");
@@ -830,10 +832,6 @@ void commandInterpreter() {
     case 'r':
       resetFunc();
       break;
-    case 'T':
-    case 't':
-      DEBUGPORT.println("test");
-      break;
     default:
       DEBUGPORT.print(bufByte);
       DEBUGPORT.print(" ");
@@ -885,7 +883,7 @@ bool mountCheck(String filename) {
   if(dsk) {
     DEBUGPORT.print("Opening '");
     DEBUGPORT.print(filename);
-    DEBUGPORT.println("' succesfull");
+    DEBUGPORT.println("' succesful");
     dsk.close();
     return true;
   }
