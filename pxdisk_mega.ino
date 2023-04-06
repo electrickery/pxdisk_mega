@@ -7,8 +7,8 @@
 /////////////////////////////////////////////////
 
 #define MAX_TEXT   128
-#define MAJOR_VERSION 2
-#define MINOR_VERSION 1
+#define MAJOR_VERSION 1
+#define MINOR_VERSION 2
 #define PATCH         0
 
 #include <SD.h>
@@ -77,8 +77,7 @@ bool diskReadSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, u
   DEBUGPORT.println(diskNames[device]);
   DEBUGPORT.println(PXPORT.available());
 #endif
-  if(dsk)
-  {
+  if(dsk) {
     int result;
     rtn = dsk.seek(track * DISK_BYTES_PER_TRACK + (sector-1) * DISK_BYTES_PER_SECTOR);
     if(rtn)
@@ -90,9 +89,7 @@ bool diskReadSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, u
       }
     }
      dsk.close();
-   }
-  else
-  {
+   } else {
     rtn = false;
 #if DEBUG
     DEBUGPORT.println("OPEN & READ FAIL");
@@ -798,7 +795,7 @@ void(* resetFunc) (void) = 0; // create a standard reset function
 
 void commandInterpreter() {
   byte bufByte = serialBuffer[0];
-  File root;
+  File root; // declaration inside the case doesn't work, why?
   
   switch(bufByte) {
     case 'C':
@@ -807,6 +804,13 @@ void commandInterpreter() {
       checkName(1);
       checkName(2);
       checkName(3);
+      break;
+    case 'D':
+    case 'd':
+      root = SD.open("/");
+      DEBUGPORT.println("Root directory:");
+      printDirectory(root, 1, false);
+      root.close();
       break;
     case 'H':
     case 'h':
@@ -825,13 +829,6 @@ void commandInterpreter() {
     case 'R':
     case 'r':
       resetFunc();
-      break;
-    case 'D':
-    case 'd':
-      root = SD.open("/");
-      DEBUGPORT.println("Root directory:");
-      printDirectory(root, 1, false);
-      root.close();
       break;
     case 'T':
     case 't':
@@ -853,6 +850,8 @@ void clearSerialBuffer() {
 }
 
 void mountImage() {
+  bool mountResult;
+  char drive;
   if (setBufPointer == 1) {
     DEBUGPORT.println("Mounted files:");
     DEBUGPORT.print(" D - ");
@@ -867,33 +866,57 @@ void mountImage() {
     uint8_t bufSize = setBufPointer;
     // Mdnnnnnnnn.eee > maximal command length = 14
     if (bufSize > DRIVENAMESIZE+1) bufSize = DRIVENAMESIZE+1; 
-    char drive = toupper(serialBuffer[1]);
+    drive = toupper(serialBuffer[1]);
     if (drive >= 'D' or drive <= 'G') {
-      remount(bufSize, drive);
+      mountResult =  remount(bufSize, drive);
     } else {
       DEBUGPORT.print("Illegal drive: ");
       DEBUGPORT.println(drive);
     }
   }
+  if (!mountResult) {
+      DEBUGPORT.print("Mounting failed for ");
+      DEBUGPORT.println(drive); 
+  }
 }
 
-void remount(uint8_t bufSize, char drive) {
+bool mountCheck(String filename) {
+  File dsk = SD.open(filename, FILE_READ);
+  if(dsk) {
+    DEBUGPORT.print("Opening '");
+    DEBUGPORT.print(filename);
+    DEBUGPORT.println("' succesfull");
+    dsk.close();
+    return true;
+  }
+  DEBUGPORT.print("Opening '");
+  DEBUGPORT.print(filename);
+  DEBUGPORT.println("' failed");
+  return false;
+}
+
+bool remount(uint8_t bufSize, char drive) {
     uint8_t driveIndex = drive - 'D';
     String command(serialBuffer);
     String filename = command.substring(2, bufSize);
     filename.toUpperCase();
     filename.trim(); // remove extra spaces
-    DEBUGPORT.print("New file name for ");
-    DEBUGPORT.print(drive);
-//    DEBUGPORT.print(" [");
-//    DEBUGPORT.print(driveIndex);
-    DEBUGPORT.print(": ");
-//    DEBUGPORT.print(bufSize, DEC);
-//    DEBUGPORT.print("] ");
-    DEBUGPORT.print(filename);
-    DEBUGPORT.println();
-    filename.toCharArray(diskNames[driveIndex], filename.length()+1);
-    diskNames[driveIndex][DRIVENAMESIZE-1] = 0x0; // probably just paranoia
+    if (mountCheck(filename)) {
+      DEBUGPORT.print("New file name for ");
+      DEBUGPORT.print(drive);
+  //    DEBUGPORT.print(" [");
+  //    DEBUGPORT.print(driveIndex);
+      DEBUGPORT.print(": ");
+  //    DEBUGPORT.print(bufSize, DEC);
+  //    DEBUGPORT.print("] ");
+      DEBUGPORT.print(filename);
+      DEBUGPORT.println();
+      filename.toCharArray(diskNames[driveIndex], filename.length()+1);
+      diskNames[driveIndex][DRIVENAMESIZE-1] = 0x0; // probably just paranoia
+      return true;
+    } else {
+      return false;
+    }
 }
 
 void checkName(uint8_t drive) {
