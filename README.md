@@ -12,6 +12,7 @@ The first feature is a command line on the debug/console port of the Arduino Meg
  	D                - root directory
  	H                - this help
  	M[dnnnnnnnn.eee] - mount file nnnnnnnn.eee on drive d
+ 	R                - temp reset Arduino
 
 The goal is to change the images assigned to the simulated disk drives D: to G:. This could be made persistent via the 
 Arduino EEPROM or a special file on the disk. 

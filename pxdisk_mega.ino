@@ -6,173 +6,14 @@
 ///  Epson PX-8 and PX-4 CP/M laptop computers
 /////////////////////////////////////////////////
 
-#include <SD.h>
-
-#if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
-#define BOARD_MEGA
-#define PXPORT          Serial2
-#define DEBUG           true       // Change to true for debugging
-#define DEBUGPORT       Serial
-#define CS_PIN          53           // SD card CS pin
-#endif
-//
-//#if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega168__)
-//#define BOARD_UNONANO
-//#define PXPORT          Serial
-//#define DEBUG           false        // !! Can't be used on these boards! !!
-//#define CS_PIN          10           // SD card CS pin
-//#endif
-
-//#if defined(__AVR_ATMega4809__)
-//#define BOARD_NANOEVERY
-//#define PXPORT          Serial1
-//#define DEBUG           true         // !! Change to true for debugging
-//#define DEBUGPORT       Serial
-//#define CS_PIN          10           // SD card CS pin
-//#endif
-
 #define MAX_TEXT   128
 #define MAJOR_VERSION 2
-#define MINOR_VERSION 0
-#define BUILD         0
+#define MINOR_VERSION 1
+#define PATCH         0
 
-#define DEBUGBAUDRATE 115200
-#define D_LED 9
-#define E_LED 10
-#define F_LED 11
-#define G_LED 12
+#include <SD.h>
 
-//////////////////////////////////////////////////////////////////////////////
-///  Special characters used by the state machine.
-//////////////////////////////////////////////////////////////////////////////
-enum Characters
-{
-  C_SOH     =  0x01,         /// < Start of Header
-  C_STX     =  0x02,         /// < Start of Text
-  C_ETX     =  0x03,         /// < End of Text
-  C_EOT     =  0x04,         /// < End of Transmission
-  C_ENQ     =  0x05,         /// < Enquiry
-  C_ACK     =  0x06,         /// < Acknowledge
-  C_NAK     =  0x15,         /// < Negative Acknowledge
-  C_FMT_MS  =  0x00,         /// < Format message from Master to Slave
-  C_FMT_SM  =  0x01,         /// < Format message from Slave to Master
-  C_SEL     =  0x31,         /// < Select command
-  
-};
-
-const byte MY_ID_1 = 0x31;    /// < Id of first drive unit
-const byte MY_ID_2 = 0x32;    /// < Id of second drive unit
-
-//////////////////////////////////////////////////////////////////////////////
-///  Device IDs that are relavant
-//////////////////////////////////////////////////////////////////////////////
-enum DeviceID
-{
-  ID_HX20   = 0x20,
-  ID_PX8    = 0x22,
-  ID_PX4    = 0x23,
-  ID_FD1    = 0x31,
-  ID_FD2    = 0x32
-  
-};
-
-//////////////////////////////////////////////////////////////////////////////
-///  States used by the state machine.
-//////////////////////////////////////////////////////////////////////////////
-enum States
-{
-  ST_BEGIN,       /// < Starting State                             :0     
-  ST_IDLE,        /// < Returns to IDLE after all major blocks     :1
-  ST_PS_POL,      /// < Received POLL from IDLE (not used)         :2
-  ST_PS_SEL,      /// < Received SELECT from IDLE                  :3
-  ST_PS_DID,      /// < Received Destination ID after SELECT       :4
-  ST_PS_SID,      /// < Received Source ID after Destination ID     5
-  ST_PS_ENQ,      /// < Received Enquiry after Source ID            6
-   
-  ST_HD_SOH,      /// < Received SOH from IDLE                      7
-  ST_HD_FMT,      /// < Received Format character after SOH         8
-  ST_HD_DID,      /// < Received Destination ID after Format        9
-  ST_HD_SID,      /// < Received Source ID after Destination ID    10
-  ST_HD_FNC,      /// < Received Function code after Source ID     11
-  ST_HD_SIZ,      /// < Received Text Size after Function code     12
-  ST_HD_CKS,      /// < Received header Checksum after Size        13
-
-  ST_TX_STX,      /// < Received STX from IDLE                     14
-  ST_TX_TXT,      /// < Received SIZ bytes of Text after STX       15
-  ST_TX_ETX,      /// < Received ETX after Text                    16
-  ST_TX_CKS,      /// < Received Text Checksum after ETX           17
-  ST_TX_ACK,      /// <  18
-
-  ST_SENT_HDR,    /// < Header was sent to Master                  19
-  ST_SENT_TXT,    /// < Text was sent to Master                   :20
-  
-  ST_ERR,         /// < An error occurred in the state machine    :21 
-  ST_UNDEFINED    /// < An undefined state -- should never happen :22
-};
-
-//////////////////////////////////////////////////////////////////////////////
-///  Functions codes used in CP/M disk systems
-//////////////////////////////////////////////////////////////////////////////
-enum Functions
-{
-  FN_DISK_RESET           = 0x0d,    /// < RESET?
-  FN_DISK_SELECT          = 0x0e,    /// < SELECT?
-  FN_DISK_READ_SECTOR     = 0x77,    /// < Read a single 128 byte sector
-  FN_DISK_WRITE_SECTOR    = 0x78,    /// < Write a single 128 byte sector
-  FN_DISK_WRITE_HST       = 0x79,    /// < CP/M WRITEHST flushes buffers
-  FN_DISK_COPY            = 0x7a,    /// < Copy a complete disk -- not used
-  FN_DISK_FORMAT          = 0x7c,    /// < Format a blank disk  -- not used
-};
-
-
-//////////////////////////////////////////////////////////////////////////////
-///  BDOS return codes from BIOS disk functions 
-//////////////////////////////////////////////////////////////////////////////
-enum BDOS_ReturnCodes
-{
-  BDOS_RC_SUCCESS         = 0,       /// < Successful Completion
-  BDOS_RC_READ_ERROR      = 0xfa,    /// < Disk Read Error
-  BDOS_RC_WRITE_ERROR     = 0xfb,    /// < Disk Write Error
-  BDOS_RC_SELECT_ERROR    = 0xfc,    /// < Disk Select Error
-  BDOS_RC_DISK_WP_ERROR   = 0xfd,    /// < Disk Write Protect Error
-  BDOS_RC_FILE_WP_ERROR   = 0xfe,    /// < Disk Write Protect Error
-};
-
-uint32_t count = 0;
-int16_t selectedDevice = -1;         /// < Latest device selected ( 1 or 2 )
-uint8_t latestDID = 0;               /// < Latest received Destination ID
-uint8_t latestSID = 0;               /// < Latest received Source ID
-uint8_t latestFNC = 0;               /// < Latest received Funcion code
-uint8_t latestSIZ = 0;               /// < Latest received Text size
-uint8_t latestCKS = 0;               /// < Latest received calculated checksum
-
-uint8_t textBuffer[MAX_TEXT];        /// < Buffer to hold incoming/outgoing text
-
-
-///////////////////////////////////////////////////////
-////////////////   SD card / file /////////////////////
-#define  DISK_BYTES_PER_SECTOR       128L
-#define  DISK_SECTORS_PER_TRACK       64L
-#define  DISK_BYTES_PER_TRACK        (DISK_BYTES_PER_SECTOR * DISK_SECTORS_PER_TRACK)
-#define  DISK_TRACKS_PER_DISK         40L
-
-
-//////////////////////////////////////////////////////////////////////////////
-///  diskNames
-///
-///  @brief  Holds filenames of current image files
-///
-//////////////////////////////////////////////////////////////////////////////
-char diskNames[4][12] = 
-{
-  "D.pfd", 
-  "E.pfd", 
-  "F.pfd", 
-  "G.pfd"
-}; 
-
-// TODO:  Change to "d.img", "e.img", "f.img", "g.img"
-
+#include "pxdisk.h"
 
 //////////////////////////////////////////////////////////////////////////////
 ///  @fn Setup
@@ -184,12 +25,12 @@ void setup()
 {
 #if DEBUG
   DEBUGPORT.begin(DEBUGBAUDRATE);
-  DEBUGPORT.print("Beginning PXdisk_mega ");
+  DEBUGPORT.print("Beginning PFBDK_mega ");
   DEBUGPORT.print(MAJOR_VERSION);
   DEBUGPORT.print(".");
   DEBUGPORT.print(MINOR_VERSION);
   DEBUGPORT.print(".");
-  DEBUGPORT.print(BUILD);
+  DEBUGPORT.print(PATCH);
   DEBUGPORT.println("...");
 #endif
 
@@ -207,22 +48,10 @@ void setup()
   diskReadSector(1, 1, 0, 1, textBuffer);
   DEBUGPORT.println("Done init read");
 
-  File root = SD.open("/");
-  DEBUGPORT.println("Root directory:");
-  printDirectory(root, 4, false);
-  
-  digitalWrite(D_LED, LOW);
-  digitalWrite(E_LED, LOW);
-  digitalWrite(F_LED, LOW);
-  digitalWrite(G_LED, LOW);
-  pinMode(D_LED, OUTPUT);
-  pinMode(E_LED, OUTPUT);
-  pinMode(F_LED, OUTPUT);
-  pinMode(G_LED, OUTPUT);
-
-  setLEDs(0xFF);
-  delay(500);
-  setLEDs(0);
+//  File root = SD.open("/");
+//  DEBUGPORT.println("Root directory:");
+//  printDirectory(root, 1, false);
+//  root.close();
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -243,7 +72,6 @@ bool diskReadSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, u
   bool rtn = true;
   uint8_t device = unit * 2 + disk;
   File dsk = SD.open(diskNames[device], FILE_READ);
-  setLEDs(device);
 #if DEBUG
   DEBUGPORT.write("R:");
   DEBUGPORT.println(diskNames[device]);
@@ -267,11 +95,9 @@ bool diskReadSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, u
   {
     rtn = false;
 #if DEBUG
-    DEBUGPORT.println("READ FAIL");
+    DEBUGPORT.println("OPEN & READ FAIL");
 #endif
   }
-  setLEDs(0);
-
   return rtn;
 }
 
@@ -294,7 +120,6 @@ bool diskWriteSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, 
   uint8_t device = unit * 2 + disk;
 //  File dsk = SD.open(diskNames[device], FILE_WRITE);
   File dsk = SD.open(diskNames[device], O_READ | O_WRITE | O_CREAT);
-  setLEDs(device);
   if(dsk)
   {
     dsk.seek(track * DISK_BYTES_PER_TRACK + (sector - 1) * DISK_BYTES_PER_SECTOR);
@@ -310,10 +135,9 @@ bool diskWriteSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, 
   {
     rtn = false;
 #if DEBUG
-    DEBUGPORT.println("WRITE FAIL");
+    DEBUGPORT.println("OPEN & WRITE FAIL");
 #endif
   }
-  setLEDs(0);
   return rtn;
 }
 
@@ -548,13 +372,6 @@ void sendText()
       uint8_t byt = textBuffer[i];
       sendByte(byt);
       cks -= byt;
-
-//#if NOTDEBUG
-//      if(i % 64 == 0) DEBUGPORT.println();
-//      showHex(textBuffer[i]);
-//      DEBUGPORT.write((byt & 0x7f));
-//#endif
-
     }
     sendByte(returnCode);  // return code
     cks -= 0;
@@ -593,10 +410,6 @@ void sendText()
 
   cks -= C_ETX;
   sendByte(cks);
-  
-//#if DEBUG
-//  DEBUGPORT.println(cks);
-//#endif
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -900,9 +713,6 @@ void stateMachine(uint8_t b)
     break;
     
   }
-//#if DEBUG
-//  DEBUGPORT.println(state);
-//#endif
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -924,28 +734,14 @@ void loop()
 #endif
     }
     
-    while(PXPORT.available() == 0);   // Wait for something to come in
-    
-    uint8_t b = receiveByte();
-#if NOTDEBUG   
-    DEBUGPORT.print(millis());
-    DEBUGPORT.print(" : ");
-    showHex(b);
-#endif
-    stateMachine(b);
+    if (PXPORT.available() > 0) {   // Wait for something to come in from PX
+        uint8_t b = receiveByte();
+        stateMachine(b);
+    }
+    if (DEBUGPORT.available() > 0) { // Wait for something to come in from console
+        commandCollector();
+    }
   }
-}
-
-void setLEDs(byte ledPatt)
-{
-    digitalWrite(D_LED, HIGH);
-    digitalWrite(E_LED, HIGH);
-    digitalWrite(F_LED, HIGH);
-    digitalWrite(G_LED, HIGH);
-    if (ledPatt && 0b00000001) digitalWrite(D_LED, LOW);
-    if (ledPatt && 0b00000010) digitalWrite(E_LED, LOW);
-    if (ledPatt && 0b00000100) digitalWrite(F_LED, LOW);
-    if (ledPatt && 0b00001000) digitalWrite(G_LED, LOW);
 }
 
 void printDirectory(File dir, int numTabs, bool recursive) {
@@ -957,7 +753,7 @@ void printDirectory(File dir, int numTabs, bool recursive) {
       break;
     }
     for (uint8_t i = 0; i < numTabs; i++) {
-      DEBUGPORT.print('\t');
+      DEBUGPORT.print(" ");
     }
     DEBUGPORT.print(entry.name());
     if (entry.isDirectory()) {
@@ -970,4 +766,145 @@ void printDirectory(File dir, int numTabs, bool recursive) {
     }
     entry.close();
   }
+}
+
+
+void commandCollector() {
+  if (DEBUGPORT.available() > 0) {
+    int inByte = DEBUGPORT.read();
+    switch(inByte) {
+//    case '.':
+//    case '\r':
+    case '\n':
+      commandInterpreter();
+      clearSerialBuffer();
+      setBufPointer = 0;
+      break;
+    case '\r':
+      break;  // ignore carriage return
+    default:
+      serialBuffer[setBufPointer] = inByte;
+      setBufPointer++;
+      if (setBufPointer >= SERIALBUFSIZE) {
+        DEBUGPORT.println("Serial buffer overflow. Cleanup.");
+        clearSerialBuffer();
+        setBufPointer = 0;
+      }
+    }
+  }
+}
+
+void(* resetFunc) (void) = 0; // create a standard reset function
+
+void commandInterpreter() {
+  byte bufByte = serialBuffer[0];
+  File root;
+  
+  switch(bufByte) {
+    case 'C':
+    case 'c':
+      checkName(0);
+      checkName(1);
+      checkName(2);
+      checkName(3);
+      break;
+    case 'H':
+    case 'h':
+    case '?':
+      DEBUGPORT.println("Usage:");
+      DEBUGPORT.println(" C                - temp debug for driveNames[][]");
+      DEBUGPORT.println(" D                - SD-card root directory");
+      DEBUGPORT.println(" H                - this help");
+      DEBUGPORT.println(" M[dnnnnnnnn.eee] - mount file nnnnnnnn.eee on drive d");
+      DEBUGPORT.println(" R                - temp reset Arduino");
+      break;
+    case 'M':
+    case 'm':
+      mountImage();
+      break;
+    case 'R':
+    case 'r':
+      resetFunc();
+      break;
+    case 'D':
+    case 'd':
+      root = SD.open("/");
+      DEBUGPORT.println("Root directory:");
+      printDirectory(root, 1, false);
+      root.close();
+      break;
+    case 'T':
+    case 't':
+      DEBUGPORT.println("test");
+      break;
+    default:
+      DEBUGPORT.print(bufByte);
+      DEBUGPORT.print(" ");
+      DEBUGPORT.println("unsupported");
+      return;
+  }
+}
+
+void clearSerialBuffer() {
+  byte i;
+  for (i = 0; i < SERIALBUFSIZE; i++) {
+    serialBuffer[i] = 0;
+  }
+}
+
+void mountImage() {
+  if (setBufPointer == 1) {
+    DEBUGPORT.println("Mounted files:");
+    DEBUGPORT.print(" D - ");
+    DEBUGPORT.println(diskNames[0]);
+    DEBUGPORT.print(" E - ");
+    DEBUGPORT.println(diskNames[1]);
+    DEBUGPORT.print(" F - ");
+    DEBUGPORT.println(diskNames[2]);
+    DEBUGPORT.print(" G - ");
+    DEBUGPORT.println(diskNames[3]);
+  } else {
+    uint8_t bufSize = setBufPointer;
+    // Mdnnnnnnnn.eee > maximal command length = 14
+    if (bufSize > DRIVENAMESIZE+1) bufSize = DRIVENAMESIZE+1; 
+    char drive = toupper(serialBuffer[1]);
+    if (drive >= 'D' or drive <= 'G') {
+      remount(bufSize, drive);
+    } else {
+      DEBUGPORT.print("Illegal drive: ");
+      DEBUGPORT.println(drive);
+    }
+  }
+}
+
+void remount(uint8_t bufSize, char drive) {
+    uint8_t driveIndex = drive - 'D';
+    String command(serialBuffer);
+    String filename = command.substring(2, bufSize);
+    filename.toUpperCase();
+    filename.trim(); // remove extra spaces
+    DEBUGPORT.print("New file name for ");
+    DEBUGPORT.print(drive);
+//    DEBUGPORT.print(" [");
+//    DEBUGPORT.print(driveIndex);
+    DEBUGPORT.print(": ");
+//    DEBUGPORT.print(bufSize, DEC);
+//    DEBUGPORT.print("] ");
+    DEBUGPORT.print(filename);
+    DEBUGPORT.println();
+    filename.toCharArray(diskNames[driveIndex], filename.length()+1);
+    diskNames[driveIndex][DRIVENAMESIZE-1] = 0x0; // probably just paranoia
+}
+
+void checkName(uint8_t drive) {
+  DEBUGPORT.print("Drive: ");
+  DEBUGPORT.write(drive + 'D');
+  DEBUGPORT.print(": ");
+  for (uint8_t i = 0; i < DRIVENAMESIZE; i++) {
+    uint8_t nameByte = diskNames[drive][i];
+    if (nameByte < 0x10) DEBUGPORT.print("0");
+    DEBUGPORT.print(nameByte, HEX);
+    DEBUGPORT.print(" ");
+  }
+  DEBUGPORT.println();
 }

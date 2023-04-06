@@ -135,10 +135,10 @@ uint8_t textBuffer[MAX_TEXT];        /// < Buffer to hold incoming/outgoing text
 #define DRIVENAMESIZE 13
 char diskNames[DRIVECOUNT][DRIVENAMESIZE] = 
 {
-  "D.pfd", 
-  "E.pfd", 
-  "F.pfd", 
-  "G.pfd"
+  "D.PFD", 
+  "E.PFD", 
+  "F.PFD", 
+  "G.PFD"
 }; 
 
 // TODO:  Change to "d.img", "e.img", "f.img", "g.img"
@@ -146,6 +146,6 @@ char diskNames[DRIVECOUNT][DRIVENAMESIZE] =
 //////////////////////////////////////////////////////////////////////////////
 /// for console/debug command interpreter
 
-#define SERIALBUFSIZE         50
+#define SERIALBUFSIZE         20
 char serialBuffer[SERIALBUFSIZE];
 byte setBufPointer = 0;
