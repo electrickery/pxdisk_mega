@@ -7,7 +7,7 @@
 /////////////////////////////////////////////////
 
 #define MAJOR_VERSION 1
-#define MINOR_VERSION 3
+#define MINOR_VERSION 4
 #define PATCH         0
 
 #include <SPI.h>
@@ -833,7 +833,8 @@ void commandInterpreter() {
       DEBUGPORT.println(" D                - SD-card root directory");
       DEBUGPORT.println(" H                - this help");
       DEBUGPORT.println(" M[dnnnnnnnn.eee] - mount file nnnnnnnn.eee on drive d");
-      DEBUGPORT.println(" Nnnnnnnnn.eee    - create or OVERWRITE a new empty image file nnnnnnnn.eee");
+      DEBUGPORT.println(" Nnnnnnnnn.eee    - create or OVERWRITE an image file nnnnnnnn.eee");
+      DEBUGPORT.println(" P[dw]            - write protect drive d; w=0 RW, w=1 RO");
       DEBUGPORT.println(" R                - temp reset Arduino");
       break;
     case 'M':
@@ -843,6 +844,10 @@ void commandInterpreter() {
     case 'N':
     case 'n':
       newFile();
+      break;
+    case 'P':
+    case 'p':
+      protect();
       break;
     case 'R':
     case 'r':
@@ -870,13 +875,21 @@ void mountImage() {
   if (setBufPointer == 1) { // list current mounted images
     DEBUGPORT.println("Mounted files:");
     DEBUGPORT.print(" D - ");
-    DEBUGPORT.println(diskNames[0]);
+    DEBUGPORT.print(diskNames[0]);
+    DEBUGPORT.print("  ");
+    DEBUGPORT.println((writeProtect[0]) ? "RO" : "RW");
     DEBUGPORT.print(" E - ");
-    DEBUGPORT.println(diskNames[1]);
+    DEBUGPORT.print(diskNames[1]);
+    DEBUGPORT.print("  ");
+    DEBUGPORT.println((writeProtect[1]) ? "RO" : "RW");
     DEBUGPORT.print(" F - ");
-    DEBUGPORT.println(diskNames[2]);
+    DEBUGPORT.print(diskNames[2]);
+    DEBUGPORT.print("  ");
+    DEBUGPORT.println((writeProtect[2]) ? "RO" : "RW");
     DEBUGPORT.print(" G - ");
-    DEBUGPORT.println(diskNames[3]);
+    DEBUGPORT.print(diskNames[3]);
+    DEBUGPORT.print("  ");
+    DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW");
   } else { // mount a new image to a drive
     uint8_t bufSize = setBufPointer;
     // Mdnnnnnnnn.eee > maximal command length = 14
@@ -954,6 +967,7 @@ void fillTextBuffer(char filler) {
   }
 }
 
+// N command
 void newFile() {
   uint8_t bufSize = setBufPointer;
   String command(serialBuffer);
@@ -988,4 +1002,33 @@ bool createFile(String filename) {
 #endif
   }
   return rtn;
+}
+
+// P command
+void protect() {
+   if (setBufPointer == 1) { // list current protect status
+     DEBUGPORT.print("D: ");
+     DEBUGPORT.println((writeProtect[0]) ? "RO" : "RW");
+     DEBUGPORT.print("E: ");
+     DEBUGPORT.println((writeProtect[1]) ? "RO" : "RW");
+     DEBUGPORT.print("F: ");
+     DEBUGPORT.println((writeProtect[2]) ? "RO" : "RW");
+     DEBUGPORT.print("G: ");
+     DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW");
+   } else if (setBufPointer == 3) {
+     char drive = toupper(serialBuffer[1]);
+     uint8_t driveIndex = drive - 'D';
+     bool wpStatus = (serialBuffer[2] == '1') ? true : false;
+     if (drive >= 'D' or drive <= 'G') {
+       writeProtect[driveIndex] = wpStatus;
+       DEBUGPORT.print(drive);
+       DEBUGPORT.print(": ");
+       DEBUGPORT.println(writeProtect[driveIndex]) ? "RO" : "RW";
+     } else {
+       DEBUGPORT.print("Illegal drive: ");
+       DEBUGPORT.println(drive);
+     }
+   } else {
+     DEBUGPORT.println("unsupported");
+   }
 }

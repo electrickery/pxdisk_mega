@@ -12,13 +12,16 @@ The first feature is a command line on the debug/console port of the Arduino Meg
  	D                - root directory
  	H                - this help
  	M[dnnnnnnnn.eee] - mount file nnnnnnnn.eee on drive d
- 	Nnnnnnnnn.eee    - create or OVERWRITE a new empty image file nnnnnnnn.eee
+ 	Nnnnnnnnn.eee    - create or OVERWRITE an image file nnnnnnnn.eee
+ 	P[dw]            - write protect drive d; w=0 RW, w=1 RO
  	R                - temp reset Arduino
 
 The goal of the M-command is to change the images assigned to the simulated disk drives D: to G:. 
 This could be made persistent via the Arduino EEPROM or a special file on the disk. 
 
 The N-command creates a new empty image file. It currently happily overwrite an existing image. To be fixed later.
+
+The P command emulates the floppy write tabs.
 
 Another plan was to respect the Read-Only attribute for the image files, emulating the floppy write protect, but this 
 attribute is not supported in the SDLib library.

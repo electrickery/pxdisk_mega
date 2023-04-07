@@ -136,13 +136,13 @@ uint8_t textBuffer[MAX_TEXT];        /// < Buffer to hold incoming/outgoing text
 #define DRIVENAMESIZE 13
 char diskNames[DRIVECOUNT][DRIVENAMESIZE] = 
 {
-  "D.IMG", 
-  "E.IMG", 
-  "F.IMG", 
-  "G.IMG"
+  "d.img", 
+  "e.img", 
+  "f.img", 
+  "g.img"
 }; 
 
-// TODO:  Change to "d.img", "e.img", "f.img", "g.img"
+bool writeProtect[DRIVECOUNT] = {0, 0, 0, 0};
 
 //////////////////////////////////////////////////////////////////////////////
 /// for console/debug command interpreter
