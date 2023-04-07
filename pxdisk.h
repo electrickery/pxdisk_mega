@@ -8,6 +8,7 @@
 #define CS_PIN          53           // SD card CS pin
 #endif
 
+#define MAX_TEXT   128
 
 #define DEBUGBAUDRATE 115200
 
@@ -123,7 +124,7 @@ uint8_t textBuffer[MAX_TEXT];        /// < Buffer to hold incoming/outgoing text
 #define  DISK_SECTORS_PER_TRACK       64L
 #define  DISK_BYTES_PER_TRACK        (DISK_BYTES_PER_SECTOR * DISK_SECTORS_PER_TRACK)
 #define  DISK_TRACKS_PER_DISK         40L
-
+#define  DISK_SECTORS                (DISK_SECTORS_PER_TRACK * DISK_TRACKS_PER_DISK)
 
 //////////////////////////////////////////////////////////////////////////////
 ///  diskNames
@@ -135,10 +136,10 @@ uint8_t textBuffer[MAX_TEXT];        /// < Buffer to hold incoming/outgoing text
 #define DRIVENAMESIZE 13
 char diskNames[DRIVECOUNT][DRIVENAMESIZE] = 
 {
-  "D.PFD", 
-  "E.PFD", 
-  "F.PFD", 
-  "G.PFD"
+  "D.IMG", 
+  "E.IMG", 
+  "F.IMG", 
+  "G.IMG"
 }; 
 
 // TODO:  Change to "d.img", "e.img", "f.img", "g.img"
@@ -146,6 +147,6 @@ char diskNames[DRIVECOUNT][DRIVENAMESIZE] =
 //////////////////////////////////////////////////////////////////////////////
 /// for console/debug command interpreter
 
-#define SERIALBUFSIZE         20
+#define SERIALBUFSIZE         30
 char serialBuffer[SERIALBUFSIZE];
 byte setBufPointer = 0;

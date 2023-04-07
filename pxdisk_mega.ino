@@ -6,14 +6,16 @@
 ///  Epson PX-8 and PX-4 CP/M laptop computers
 /////////////////////////////////////////////////
 
-#define MAX_TEXT   128
 #define MAJOR_VERSION 1
-#define MINOR_VERSION 2
+#define MINOR_VERSION 3
 #define PATCH         0
 
+#include <SPI.h>
 #include <SD.h>
 
 #include "pxdisk.h"
+
+File root;
 
 //////////////////////////////////////////////////////////////////////////////
 ///  @fn Setup
@@ -28,11 +30,7 @@ void setup()
   DEBUGPORT.println();
   DEBUGPORT.println();
   DEBUGPORT.print("Beginning PFBDK_mega ");
-  DEBUGPORT.print(MAJOR_VERSION);
-  DEBUGPORT.print(".");
-  DEBUGPORT.print(MINOR_VERSION);
-  DEBUGPORT.print(".");
-  DEBUGPORT.print(PATCH);
+  printVersion();
   DEBUGPORT.println("...");
 #endif
 
@@ -48,12 +46,20 @@ void setup()
   diskReadSector(0, 1, 0, 1, textBuffer);
   diskReadSector(1, 0, 0, 1, textBuffer);
   diskReadSector(1, 1, 0, 1, textBuffer);
-  DEBUGPORT.println("Done init read");
 
-//  File root = SD.open("/");
-//  DEBUGPORT.println("Root directory:");
-//  printDirectory(root, 1, false);
-//  root.close();
+  root = SD.open("/");
+  DEBUGPORT.println();
+  DEBUGPORT.println("Root directory:");
+  printDirectory(root, 1, false);
+  root.close();
+}
+
+void printVersion() {
+  DEBUGPORT.print(MAJOR_VERSION);
+  DEBUGPORT.print(".");
+  DEBUGPORT.print(MINOR_VERSION);
+  DEBUGPORT.print(".");
+  DEBUGPORT.print(PATCH);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -77,7 +83,7 @@ bool diskReadSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, u
 #if DEBUG
   DEBUGPORT.write("R:");
   DEBUGPORT.println(diskNames[device]);
-  DEBUGPORT.println(PXPORT.available());
+//  DEBUGPORT.println(PXPORT.available());
 #endif
   if(dsk) {
     int result;
@@ -754,17 +760,19 @@ void printDirectory(File dir, int numTabs, bool recursive) {
     for (uint8_t i = 0; i < numTabs; i++) {
       DEBUGPORT.print(" ");
     }
-    DEBUGPORT.print(entry.name());
+    String name = entry.name();
+    DEBUGPORT.print(name);
     if (entry.isDirectory()) {
       DEBUGPORT.println("/");
       if (recursive) printDirectory(entry, numTabs + 1, true);
     } else {
       // files have sizes, directories do not
-      DEBUGPORT.print("\t\t");
+      DEBUGPORT.print("\t");
+      if (name.length() < 7) DEBUGPORT.print("\t");
       DEBUGPORT.println(entry.size(), DEC);
     }
     entry.close();
-  }
+  } 
 }
 
 
@@ -817,16 +825,24 @@ void commandInterpreter() {
     case 'H':
     case 'h':
     case '?':
-      DEBUGPORT.println("Usage:");
+      DEBUGPORT.print("Usage (");
+      printVersion();
+      DEBUGPORT.println("):");
+
       DEBUGPORT.println(" C                - temp debug for driveNames[][]");
       DEBUGPORT.println(" D                - SD-card root directory");
       DEBUGPORT.println(" H                - this help");
       DEBUGPORT.println(" M[dnnnnnnnn.eee] - mount file nnnnnnnn.eee on drive d");
+      DEBUGPORT.println(" Nnnnnnnnn.eee    - create or OVERWRITE a new empty image file nnnnnnnn.eee");
       DEBUGPORT.println(" R                - temp reset Arduino");
       break;
     case 'M':
     case 'm':
       mountImage();
+      break;
+    case 'N':
+    case 'n':
+      newFile();
       break;
     case 'R':
     case 'r':
@@ -847,10 +863,11 @@ void clearSerialBuffer() {
   }
 }
 
+// M command
 void mountImage() {
   bool mountResult;
   char drive;
-  if (setBufPointer == 1) {
+  if (setBufPointer == 1) { // list current mounted images
     DEBUGPORT.println("Mounted files:");
     DEBUGPORT.print(" D - ");
     DEBUGPORT.println(diskNames[0]);
@@ -860,7 +877,7 @@ void mountImage() {
     DEBUGPORT.println(diskNames[2]);
     DEBUGPORT.print(" G - ");
     DEBUGPORT.println(diskNames[3]);
-  } else {
+  } else { // mount a new image to a drive
     uint8_t bufSize = setBufPointer;
     // Mdnnnnnnnn.eee > maximal command length = 14
     if (bufSize > DRIVENAMESIZE+1) bufSize = DRIVENAMESIZE+1; 
@@ -883,7 +900,7 @@ bool mountCheck(String filename) {
   if(dsk) {
     DEBUGPORT.print("Opening '");
     DEBUGPORT.print(filename);
-    DEBUGPORT.println("' succesful");
+    DEBUGPORT.println("' successful");
     dsk.close();
     return true;
   }
@@ -917,6 +934,7 @@ bool remount(uint8_t bufSize, char drive) {
     }
 }
 
+// temp C command
 void checkName(uint8_t drive) {
   DEBUGPORT.print("Drive: ");
   DEBUGPORT.write(drive + 'D');
@@ -928,4 +946,46 @@ void checkName(uint8_t drive) {
     DEBUGPORT.print(" ");
   }
   DEBUGPORT.println();
+}
+
+void fillTextBuffer(char filler) {
+  for (uint8_t i = 0; i < DISK_BYTES_PER_SECTOR; i++) {
+    textBuffer[i] = filler;
+  }
+}
+
+void newFile() {
+  uint8_t bufSize = setBufPointer;
+  String command(serialBuffer);
+  if (bufSize > DRIVENAMESIZE) bufSize = DRIVENAMESIZE;
+  String filename = command.substring(1, bufSize);
+  filename.toLowerCase();
+  filename.trim(); // remove extra spaces
+   
+  createFile(filename); 
+}
+
+bool createFile(String filename) {
+  bool rtn = true;
+  fillTextBuffer(0xE5);
+  File dsk = SD.open(filename, O_READ | O_WRITE | O_CREAT);
+  if(dsk) {
+    dsk.seek(0);
+    for (uint16_t sc = 0; sc < DISK_SECTORS; sc++) {
+        dsk.write(textBuffer, DISK_BYTES_PER_SECTOR);
+        if (sc % DISK_SECTORS_PER_TRACK == 0) DEBUGPORT.print(".");
+    }
+    DEBUGPORT.println();
+    dsk.close();
+    DEBUGPORT.print("File created: ");
+    DEBUGPORT.println(filename);
+  }
+  else
+  {
+    rtn = false;
+#if DEBUG
+    DEBUGPORT.println("OPEN & WRITE FAIL");
+#endif
+  }
+  return rtn;
 }
