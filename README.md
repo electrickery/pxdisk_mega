@@ -15,8 +15,10 @@ The first feature is a command line on the debug/console port of the Arduino Meg
  	Nnnnnnnnn.eee    - create or OVERWRITE a new empty image file nnnnnnnn.eee
  	R                - temp reset Arduino
 
-The goal is to change the images assigned to the simulated disk drives D: to G:. This could be made persistent via the 
-Arduino EEPROM or a special file on the disk. 
+The goal of the M-command is to change the images assigned to the simulated disk drives D: to G:. 
+This could be made persistent via the Arduino EEPROM or a special file on the disk. 
+
+The N-command creates a new empty image file. It currently happily overwrite an existing image. To be fixed later.
 
 Another plan was to respect the Read-Only attribute for the image files, emulating the floppy write protect, but this 
 attribute is not supported in the SDLib library.
