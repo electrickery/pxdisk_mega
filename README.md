@@ -1,6 +1,6 @@
-# PXBDK - Arduino Mega simulator of the Epson's Epsp based disk drives
+# PFBDK - Arduino Mega simulator of the Epson's Epsp based disk drives
 
-This is my fork of William R. Cooke's PXBDK sketch found at http://wrcooke.net/projects/pfbdk/pfbdk.html
+This is my fork of William R. Cooke's PFBDK sketch found at http://wrcooke.net/projects/pfbdk/pfbdk.html
 
 The intend is to add some features making it somewhat more convenient to use. The route will be very incremental to keep 
 the basic functionality working.
