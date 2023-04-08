@@ -332,7 +332,7 @@ void sendText()
 #if DEBUG
   DEBUGPORT.print("S_T: ");
 #endif
-
+  uint8_t device;
   uint8_t cks = 0;
   uint8_t returnCode = 0;
   sendByte(C_STX);
@@ -365,7 +365,16 @@ void sendText()
     cks -= 0;
     break;
 //////////////////////////////////////////////////////////////////////////////
-    case FN_DISK_READ_SECTOR: 
+    case FN_DISK_READ_SECTOR:
+//    DEBUGPORT.print("FN_DISK_READ_SECTOR: Dv ");
+//    DEBUGPORT.print(selectedDevice, HEX);
+//    DEBUGPORT.print(" Dr ");
+//    DEBUGPORT.print(textBuffer[0], HEX);
+//    DEBUGPORT.print(" Tr ");
+//    DEBUGPORT.print(textBuffer[1], HEX);
+//    DEBUGPORT.print(" Sc ");
+//    DEBUGPORT.print(textBuffer[2], HEX);
+//    DEBUGPORT.println();
     returnStatus = diskReadSector(selectedDevice, textBuffer[0] - 1, 
                       textBuffer[1], textBuffer[2], textBuffer);
     if(!returnStatus) // error!
@@ -383,11 +392,28 @@ void sendText()
     break;
 //////////////////////////////////////////////////////////////////////////////
     case FN_DISK_WRITE_SECTOR:
-    returnStatus = diskWriteSector(selectedDevice, textBuffer[0] - 1, 
-                   textBuffer[1], textBuffer[2], &textBuffer[4]);
-    if(!returnStatus) // error!
-    {
-      returnCode = BDOS_RC_WRITE_ERROR;
+//    DEBUGPORT.print("FN_DISK_WRITE_SECTOR: Dv ");
+//    DEBUGPORT.print(selectedDevice, HEX);
+//    DEBUGPORT.print(" Dr ");
+//    DEBUGPORT.print(textBuffer[0], HEX);
+//    DEBUGPORT.print(" Tr ");
+//    DEBUGPORT.print(textBuffer[1], HEX);
+//    DEBUGPORT.print(" Sc ");
+//    DEBUGPORT.print(textBuffer[2], HEX);
+//    DEBUGPORT.println();
+    device = selectedDevice * 2 + textBuffer[0] - 1;
+    if (writeProtect[device] == true) {
+        DEBUGPORT.print("Device: ");
+        DEBUGPORT.print(device);
+        DEBUGPORT.println(" is write protected");  
+        returnCode = BDOS_RC_WRITE_ERROR; // not the correct code, but the PX is happy.
+    } else {
+        returnStatus = diskWriteSector(selectedDevice, textBuffer[0] - 1, 
+                       textBuffer[1], textBuffer[2], &textBuffer[4]);
+        if(!returnStatus) // error!
+        {
+            returnCode = BDOS_RC_WRITE_ERROR;
+        }
     }
     sendByte(returnCode);  // return code
     cks -= 0;
@@ -1023,7 +1049,7 @@ void protect() {
        writeProtect[driveIndex] = wpStatus;
        DEBUGPORT.print(drive);
        DEBUGPORT.print(": ");
-       DEBUGPORT.println(writeProtect[driveIndex]) ? "RO" : "RW";
+       DEBUGPORT.println((writeProtect[driveIndex]) ? "RO" : "RW");
      } else {
        DEBUGPORT.print("Illegal drive: ");
        DEBUGPORT.println(drive);
