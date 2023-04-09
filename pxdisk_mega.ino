@@ -7,7 +7,7 @@
 /////////////////////////////////////////////////
 
 #define MAJOR_VERSION 1
-#define MINOR_VERSION 4
+#define MINOR_VERSION 5
 #define PATCH         0
 
 #include <SPI.h>
@@ -859,7 +859,7 @@ void commandInterpreter() {
       DEBUGPORT.println(" D                - SD-card root directory");
       DEBUGPORT.println(" H                - this help");
       DEBUGPORT.println(" M[dnnnnnnnn.eee] - mount file nnnnnnnn.eee on drive d");
-      DEBUGPORT.println(" Nnnnnnnnn.eee    - create or OVERWRITE an image file nnnnnnnn.eee");
+      DEBUGPORT.println(" Nnnnnnnnn.eee    - create an image file nnnnnnnn.eee");
       DEBUGPORT.println(" P[dw]            - write protect drive d; w=0 RW, w=1 RO");
       DEBUGPORT.println(" R                - temp reset Arduino");
       break;
@@ -1001,8 +1001,16 @@ void newFile() {
   String filename = command.substring(1, bufSize);
   filename.toLowerCase();
   filename.trim(); // remove extra spaces
-   
-  createFile(filename); 
+
+  if (checkFilePresence(filename)) {
+    DEBUGPORT.print("File: ");
+    DEBUGPORT.print(filename);
+    DEBUGPORT.println(" exists. Aborting.");
+  } else {
+    createFile(filename);
+    DEBUGPORT.print("File created: ");
+    DEBUGPORT.println(filename);
+  } 
 }
 
 bool createFile(String filename) {
@@ -1017,8 +1025,6 @@ bool createFile(String filename) {
     }
     DEBUGPORT.println();
     dsk.close();
-    DEBUGPORT.print("File created: ");
-    DEBUGPORT.println(filename);
   }
   else
   {
@@ -1057,4 +1063,14 @@ void protect() {
    } else {
      DEBUGPORT.println("unsupported");
    }
+}
+
+bool checkFilePresence(String filename) {
+  File dsk = SD.open(filename, FILE_READ);
+  if(dsk) {
+    dsk.close();
+    return true;
+  } else {
+    return false;
+  }
 }

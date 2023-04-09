@@ -7,19 +7,21 @@ the basic functionality working.
 
 The first feature is a command line on the debug/console port of the Arduino Mega. Its usage is now:
 
-	Usage:
- 	C                - temp debug for driveNames array
- 	D                - root directory
+	Usage (1.5.0):
+ 	C                - temp debug for driveNames[][]
+ 	D                - SD-card root directory
  	H                - this help
  	M[dnnnnnnnn.eee] - mount file nnnnnnnn.eee on drive d
- 	Nnnnnnnnn.eee    - create or OVERWRITE an image file nnnnnnnn.eee
+ 	Nnnnnnnnn.eee    - create an image file nnnnnnnn.eee
  	P[dw]            - write protect drive d; w=0 RW, w=1 RO
  	R                - temp reset Arduino
+
+The D commands lists only the root directory of the SD card.
 
 The goal of the M-command is to change the images assigned to the simulated disk drives D: to G:. 
 This could be made persistent via the Arduino EEPROM or a special file on the disk. 
 
-The N-command creates a new empty image file. It currently happily overwrite an existing image. To be fixed later.
+The N-command creates a new empty image file. It aborts when the image exists.
 
 The P command emulates the floppy write tabs.
 
@@ -28,4 +30,4 @@ attribute is not supported in the SDLib library.
 
 There is a 3D-printed case and pictures on my own page at: https://electrickery.nl/comp/tf20/pxdisk/
 
-fjkraan@electrickery.nl, 2023-04-07
+fjkraan@electrickery.nl, 2023-04-08
