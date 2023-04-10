@@ -15,8 +15,6 @@
 
 #include "pxdisk.h"
 
-File root;
-
 //////////////////////////////////////////////////////////////////////////////
 ///  @fn Setup
 ///
@@ -33,6 +31,18 @@ void setup()
   printVersion();
   DEBUGPORT.println("...");
 #endif
+
+  digitalWrite(DEBUGLED, HIGH);
+  pinMode(DEBUGLED, OUTPUT);
+  
+  digitalWrite(D_LED, LOW);
+  digitalWrite(E_LED, LOW);
+  digitalWrite(F_LED, LOW);
+  digitalWrite(G_LED, LOW);
+  pinMode(D_LED, OUTPUT);
+  pinMode(E_LED, OUTPUT);
+  pinMode(F_LED, OUTPUT);
+  pinMode(G_LED, OUTPUT);
 
   PXPORT.begin(38400);
   int sd = SD.begin(CS_PIN);
@@ -52,6 +62,15 @@ void setup()
   DEBUGPORT.println("Root directory:");
   printDirectory(root, 1, false);
   root.close();
+
+  // Drive LEDs off
+  digitalWrite(D_LED, HIGH);
+  digitalWrite(E_LED, HIGH);
+  digitalWrite(F_LED, HIGH);
+  digitalWrite(G_LED, HIGH);
+  ledOn = false;
+
+  digitalWrite(DEBUGLED, LOW);
 }
 
 void printVersion() {
@@ -84,6 +103,7 @@ bool diskReadSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, u
   DEBUGPORT.write("R:");
   DEBUGPORT.println(diskNames[device]);
 //  DEBUGPORT.println(PXPORT.available());
+  driveLedOn(device);
 #endif
   if(dsk) {
     int result;
@@ -133,7 +153,8 @@ bool diskWriteSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, 
 #if DEBUG
     DEBUGPORT.write("W:");
     DEBUGPORT.println(diskNames[device]);
-    DEBUGPORT.println(PXPORT.available());
+//    DEBUGPORT.println(PXPORT.available());
+  driveLedOn(device);
 #endif 
   }
   else
@@ -478,6 +499,7 @@ void stateMachine(uint8_t b)
     if(b == C_SEL)
     {
       state = ST_PS_SEL;
+      digitalWrite(DEBUGLED, HIGH);
     }
     else if(b == C_SOH)
     {
@@ -726,6 +748,7 @@ void stateMachine(uint8_t b)
 #if DEBUG
       DEBUGPORT.println("Sent EOT");
 #endif
+      digitalWrite(DEBUGLED, LOW);
     }
     else if(b == C_NAK)
     {
@@ -771,6 +794,9 @@ void loop()
     }
     if (DEBUGPORT.available() > 0) { // Wait for something to come in from console
         commandCollector();
+    }
+    if (ledTime < millis()) {
+      driveLedsOff();
     }
   }
 }
@@ -1073,4 +1099,32 @@ bool checkFilePresence(String filename) {
   } else {
     return false;
   }
+}
+
+void driveLedOn(uint8_t drive) {
+  ledOn = true;
+  ledTime = millis() + LEDTIMEOUT;
+  switch(drive) {
+    case 0:
+      digitalWrite(D_LED, LOW);
+      break;
+    case 1:
+      digitalWrite(E_LED, LOW);
+      break;
+    case 2:
+      digitalWrite(F_LED, LOW);
+      break;
+    case 3:
+      digitalWrite(G_LED, LOW);
+      break;
+    default:
+      DEBUGPORT.println("Unknown drive");
+  }
+}
+
+void driveLedsOff() {
+  digitalWrite(D_LED, HIGH);
+  digitalWrite(E_LED, HIGH);
+  digitalWrite(F_LED, HIGH);
+  digitalWrite(G_LED, HIGH);
 }

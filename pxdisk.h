@@ -6,6 +6,7 @@
 #define DEBUG           true       // Change to true for debugging
 #define DEBUGPORT       Serial
 #define CS_PIN          53           // SD card CS pin
+#define DEBUGLED        13
 #endif
 
 #define MAX_TEXT   128
@@ -120,6 +121,8 @@ uint8_t textBuffer[MAX_TEXT];        /// < Buffer to hold incoming/outgoing text
 
 ///////////////////////////////////////////////////////
 ////////////////   SD card / file /////////////////////
+File root;
+
 #define  DISK_BYTES_PER_SECTOR       128L
 #define  DISK_SECTORS_PER_TRACK       64L
 #define  DISK_BYTES_PER_TRACK        (DISK_BYTES_PER_SECTOR * DISK_SECTORS_PER_TRACK)
@@ -143,6 +146,16 @@ char diskNames[DRIVECOUNT][DRIVENAMESIZE] =
 }; 
 
 bool writeProtect[DRIVECOUNT] = {0, 0, 0, 0};
+
+// drive LEDs
+#define D_LED  9
+#define E_LED 10
+#define F_LED 11
+#define G_LED 12
+bool ledOn;
+
+uint32_t ledTime;
+#define LEDTIMEOUT 250
 
 //////////////////////////////////////////////////////////////////////////////
 /// for console/debug command interpreter
