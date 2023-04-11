@@ -1,6 +1,9 @@
 /////////////////////////////////////////////////
 ///  pxdisk
 ///  copyright(c) 2019 William R Cooke
+///  
+///  command line interpreter and blinking lights: 2023, Fred Jan Kraan
+///  https://github.com/electrickery/pxdisk_mega
 ///
 ///  Use an SD card as multiple disk drives for 
 ///  Epson PX-8 and PX-4 CP/M laptop computers
