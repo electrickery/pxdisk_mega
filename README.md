@@ -2,6 +2,8 @@
 
 This is my fork of William R. Cooke's PFBDK sketch found at http://wrcooke.net/projects/pfbdk/pfbdk.html
 
+![PFBDK on a Arduino Mega 2560 in PETG box](PFBDKbox.jpg)
+
 The intend is to add some features making it somewhat more convenient to use. The route will be very incremental to keep 
 the basic functionality working.
 
