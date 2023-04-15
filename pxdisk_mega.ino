@@ -47,7 +47,7 @@ void setup()
   pinMode(F_LED, OUTPUT);
   pinMode(G_LED, OUTPUT);
 
-  PXPORT.begin(38400);
+  PXPORT.begin(PXBAUDRATE);
   int sd = SD.begin(CS_PIN);
 
   // TODO:  Why in the haydes do we need to do this?
@@ -223,7 +223,7 @@ void showHex(uint8_t b)
 bool isValidSID(uint8_t id)
 {
   bool rtn = false;
-  if(id == 0x20 || id == 0x22 || id == 0x23)  // 20=HX20, 22=PX8, 23=PX4
+  if(id == HX20 || id == PX8 || id == PX4)  // 20=HX20, 22=PX8, 23=PX4
   {
     rtn = true;
   }
@@ -242,7 +242,7 @@ bool isValidSID(uint8_t id)
 bool isValidDID(uint8_t id)
 {
   bool rtn = false;
-  if(id == 0x31 || id == 0x32)    // 31=First Disk (D,E) 32=Second Disk (F,G)
+  if(id == MY_ID_1 || id == MY_ID_2)    // 31=First Disk (D,E) 32=Second Disk (F,G)
   {
     rtn = true;
   }
@@ -260,8 +260,20 @@ bool isValidDID(uint8_t id)
 //////////////////////////////////////////////////////////////////////////////
 bool isValidFNC(uint8_t f)
 {
-  bool rtn = true;
-  /// TODO: fix this
+  bool rtn = false;
+  switch(f) {
+    case FN_DISK_RESET:
+    case FN_DISK_SELECT:
+    case FN_DISK_READ_SECTOR:
+    case FN_DISK_WRITE_SECTOR:
+    case FN_DISK_WRITE_HST:
+    case FN_DISK_COPY:
+    case FN_DISK_FORMAT:
+      rtn = true;
+      break;
+    default:
+      break;
+  }
   return rtn;
 }
 
@@ -377,8 +389,8 @@ void sendText()
     cks -= 0;
     break;
 //////////////////////////////////////////////////////////////////////////////
-    case FN_DISK_SELECT:   // ??? Where is this?  Not in PX8 OSRM ch 15 epsp.html
-    sendByte(0);
+    case FN_DISK_SELECT:   // see HAND-HELD-COMPUTER HX-20 Software ASSEMBLER DISASSEMBLER (SwAsDisAs.pdf)
+    sendByte(0);          
     
 #if DEBUG
     DEBUGPORT.print("SEL");
@@ -390,15 +402,6 @@ void sendText()
     break;
 //////////////////////////////////////////////////////////////////////////////
     case FN_DISK_READ_SECTOR:
-//    DEBUGPORT.print("FN_DISK_READ_SECTOR: Dv ");
-//    DEBUGPORT.print(selectedDevice, HEX);
-//    DEBUGPORT.print(" Dr ");
-//    DEBUGPORT.print(textBuffer[0], HEX);
-//    DEBUGPORT.print(" Tr ");
-//    DEBUGPORT.print(textBuffer[1], HEX);
-//    DEBUGPORT.print(" Sc ");
-//    DEBUGPORT.print(textBuffer[2], HEX);
-//    DEBUGPORT.println();
     returnStatus = diskReadSector(selectedDevice, textBuffer[0] - 1, 
                       textBuffer[1], textBuffer[2], textBuffer);
     if(!returnStatus) // error!
@@ -416,15 +419,6 @@ void sendText()
     break;
 //////////////////////////////////////////////////////////////////////////////
     case FN_DISK_WRITE_SECTOR:
-//    DEBUGPORT.print("FN_DISK_WRITE_SECTOR: Dv ");
-//    DEBUGPORT.print(selectedDevice, HEX);
-//    DEBUGPORT.print(" Dr ");
-//    DEBUGPORT.print(textBuffer[0], HEX);
-//    DEBUGPORT.print(" Tr ");
-//    DEBUGPORT.print(textBuffer[1], HEX);
-//    DEBUGPORT.print(" Sc ");
-//    DEBUGPORT.print(textBuffer[2], HEX);
-//    DEBUGPORT.println();
     device = selectedDevice * 2 + textBuffer[0] - 1;
     if (writeProtect[device] == true) {
         DEBUGPORT.print("Device: ");
@@ -623,6 +617,11 @@ void stateMachine(uint8_t b)
     }
     else
     {
+#if DEBUG
+      DEBUGPORT.println();
+      DEBUGPORT.print("Invalid function: ");
+      DEBUGPORT.println(b, HEX);
+#endif      
       state = ST_ERR;
     }
     break;

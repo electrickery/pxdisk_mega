@@ -9,9 +9,18 @@
 #define DEBUGLED        13
 #endif
 
+#if defined(__AVR_ATmega32U4__)
+#define BOARD_MICRO
+#define PXPORT          Serial1
+#define DEBUG           true       // Change to true for debugging
+#define DEBUGPORT       Serial
+#define CS_PIN          10           // SD card CS pin
+#endif
+
 #define MAX_TEXT   128
 
 #define DEBUGBAUDRATE 115200
+#define PXBAUDRATE    38400
 
 //////////////////////////////////////////////////////////////////////////////
 ///  Special characters used by the state machine.
@@ -33,17 +42,20 @@ enum Characters
 
 const byte MY_ID_1 = 0x31;    /// < Id of first drive unit
 const byte MY_ID_2 = 0x32;    /// < Id of second drive unit
+const byte HX20    = 0x20;    /// < Id of a HX-20, HC-20 (not really supported...)
+const byte PX8     = 0x22;    /// < Id of a PX-8. HC-80, HX-80
+const byte PX4     = 0x23;    /// < Id of a PX-4. HC-40, HX-40
 
 //////////////////////////////////////////////////////////////////////////////
 ///  Device IDs that are relavant
 //////////////////////////////////////////////////////////////////////////////
 enum DeviceID
 {
-  ID_HX20   = 0x20,
+  ID_HX20   = 0x20,   /// not supported
   ID_PX8    = 0x22,
   ID_PX4    = 0x23,
-  ID_FD1    = 0x31,
-  ID_FD2    = 0x32
+  ID_FD1    = 0x31,   /// 1st TF-20, D: and E:
+  ID_FD2    = 0x32    /// 2nd TF-20, F: and G:
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -85,8 +97,8 @@ enum States
 //////////////////////////////////////////////////////////////////////////////
 enum Functions
 {
-  FN_DISK_RESET           = 0x0d,    /// < RESET?
-  FN_DISK_SELECT          = 0x0e,    /// < SELECT?
+  FN_DISK_RESET           = 0x0d,    /// < RESET DISK SYSTEM
+  FN_DISK_SELECT          = 0x0e,    /// < SELECT DISK
   FN_DISK_READ_SECTOR     = 0x77,    /// < Read a single 128 byte sector
   FN_DISK_WRITE_SECTOR    = 0x78,    /// < Write a single 128 byte sector
   FN_DISK_WRITE_HST       = 0x79,    /// < CP/M WRITEHST flushes buffers
