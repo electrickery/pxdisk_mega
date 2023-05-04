@@ -1,20 +1,35 @@
-// 
+// pxdisk.h
+/// Based on pxDisk copyright(c) 2019 William R Cooke
+
+bool console = false;
 
 #if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
 #define BOARD_MEGA
+#define BOARDTEXT       "Mega2560"
 #define PXPORT          Serial2
 #define DEBUG           true       // Change to true for debugging
 #define DEBUGPORT       Serial
 #define CS_PIN          53           // SD card CS pin
+#define D_LED            9
+#define E_LED           10
+#define F_LED           11
+#define G_LED           12
 #define DEBUGLED        13
 #endif
 
+// The Pro Micro is equal to the Micro or Leonardo but smaller (and cheaper)
 #if defined(__AVR_ATmega32U4__)
 #define BOARD_MICRO
+#define BOARDTEXT       "Pro_Micro"
 #define PXPORT          Serial1
 #define DEBUG           true       // Change to true for debugging
 #define DEBUGPORT       Serial
-#define CS_PIN          10           // SD card CS pin
+#define CS_PIN          10         // SD card CS pin
+#define D_LED            2
+#define E_LED            3
+#define F_LED            4
+#define G_LED            5
+#define DEBUGLED         6
 #endif
 
 #define MAX_TEXT   128
@@ -42,20 +57,17 @@ enum Characters
 
 const byte MY_ID_1 = 0x31;    /// < Id of first drive unit
 const byte MY_ID_2 = 0x32;    /// < Id of second drive unit
-const byte HX20    = 0x20;    /// < Id of a HX-20, HC-20 (not really supported...)
-const byte PX8     = 0x22;    /// < Id of a PX-8. HC-80, HX-80
-const byte PX4     = 0x23;    /// < Id of a PX-4. HC-40, HX-40
 
 //////////////////////////////////////////////////////////////////////////////
-///  Device IDs that are relavant
+///  Device IDs that are relevant
 //////////////////////////////////////////////////////////////////////////////
 enum DeviceID
 {
-  ID_HX20   = 0x20,   /// not supported
+  ID_HX20   = 0x20,
   ID_PX8    = 0x22,
   ID_PX4    = 0x23,
-  ID_FD1    = 0x31,   /// 1st TF-20, D: and E:
-  ID_FD2    = 0x32    /// 2nd TF-20, F: and G:
+  ID_FD1    = 0x31,
+  ID_FD2    = 0x32
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -97,8 +109,8 @@ enum States
 //////////////////////////////////////////////////////////////////////////////
 enum Functions
 {
-  FN_DISK_RESET           = 0x0d,    /// < RESET DISK SYSTEM
-  FN_DISK_SELECT          = 0x0e,    /// < SELECT DISK
+  FN_DISK_RESET           = 0x0d,    /// < RESET?
+  FN_DISK_SELECT          = 0x0e,    /// < SELECT?
   FN_DISK_READ_SECTOR     = 0x77,    /// < Read a single 128 byte sector
   FN_DISK_WRITE_SECTOR    = 0x78,    /// < Write a single 128 byte sector
   FN_DISK_WRITE_HST       = 0x79,    /// < CP/M WRITEHST flushes buffers
@@ -133,8 +145,6 @@ uint8_t textBuffer[MAX_TEXT];        /// < Buffer to hold incoming/outgoing text
 
 ///////////////////////////////////////////////////////
 ////////////////   SD card / file /////////////////////
-File root;
-
 #define  DISK_BYTES_PER_SECTOR       128L
 #define  DISK_SECTORS_PER_TRACK       64L
 #define  DISK_BYTES_PER_TRACK        (DISK_BYTES_PER_SECTOR * DISK_SECTORS_PER_TRACK)
@@ -159,11 +169,6 @@ char diskNames[DRIVECOUNT][DRIVENAMESIZE] =
 
 bool writeProtect[DRIVECOUNT] = {0, 0, 0, 0};
 
-// drive LEDs
-#define D_LED  9
-#define E_LED 10
-#define F_LED 11
-#define G_LED 12
 bool ledOn;
 
 uint32_t ledTime;

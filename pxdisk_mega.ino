@@ -11,12 +11,14 @@
 
 #define MAJOR_VERSION 1
 #define MINOR_VERSION 5
-#define PATCH         0
+#define PATCH         2
 
 #include <SPI.h>
 #include <SD.h>
 
 #include "pxdisk.h"
+
+File root;
 
 //////////////////////////////////////////////////////////////////////////////
 ///  @fn Setup
@@ -26,22 +28,34 @@
 //////////////////////////////////////////////////////////////////////////////
 void setup() 
 {
-#if DEBUG
-  DEBUGPORT.begin(DEBUGBAUDRATE);
-  DEBUGPORT.println();
-  DEBUGPORT.println();
-  DEBUGPORT.print("Beginning PFBDK_mega ");
-  printVersion();
-  DEBUGPORT.println("...");
-#endif
+  uint16_t timeOut = 100;
 
-  digitalWrite(DEBUGLED, HIGH);
+  DEBUGPORT.begin(DEBUGBAUDRATE);
+  while (!DEBUGPORT && timeOut) {
+    ; // wait for serial port to connect. Needed for native USB port only
+    timeOut--;
+    if (timeOut % 2) { // toggle debugLED every delay cycle
+      debugLedOff();
+    } else {
+      debugLedOn();
+    }
+    delay(100L);
+  }
+  if (timeOut) { // if timeout hasn't happened, console is available
+    console = true;
+  }
+
+  if (console) DEBUGPORT.println();
+  if (console) DEBUGPORT.println();
+  if (console) DEBUGPORT.print(F("Beginning PFBDK on "));
+  if (console) DEBUGPORT.print(F(BOARDTEXT));
+  if (console) DEBUGPORT.print(F(" "));
+  printVersion();
+  if (console) DEBUGPORT.println("...");
+
+  debugLedOn();
   pinMode(DEBUGLED, OUTPUT);
   
-  digitalWrite(D_LED, LOW);
-  digitalWrite(E_LED, LOW);
-  digitalWrite(F_LED, LOW);
-  digitalWrite(G_LED, LOW);
   pinMode(D_LED, OUTPUT);
   pinMode(E_LED, OUTPUT);
   pinMode(F_LED, OUTPUT);
@@ -61,27 +75,25 @@ void setup()
   diskReadSector(1, 1, 0, 1, textBuffer);
 
   root = SD.open("/");
-  DEBUGPORT.println();
-  DEBUGPORT.println("Root directory:");
+  if (console) DEBUGPORT.println();
+  if (console) DEBUGPORT.println(F("Root directory:"));
   printDirectory(root, 1, false);
   root.close();
 
-  // Drive LEDs off
-  digitalWrite(D_LED, HIGH);
-  digitalWrite(E_LED, HIGH);
-  digitalWrite(F_LED, HIGH);
-  digitalWrite(G_LED, HIGH);
-  ledOn = false;
-
-  digitalWrite(DEBUGLED, LOW);
+  // 
+  debugLedOff();
+  // 
+  driveLedsOff();
 }
 
 void printVersion() {
-  DEBUGPORT.print(MAJOR_VERSION);
-  DEBUGPORT.print(".");
-  DEBUGPORT.print(MINOR_VERSION);
-  DEBUGPORT.print(".");
-  DEBUGPORT.print(PATCH);
+  if (console) {
+    DEBUGPORT.print(MAJOR_VERSION);
+    DEBUGPORT.print(".");
+    DEBUGPORT.print(MINOR_VERSION);
+    DEBUGPORT.print(".");
+    DEBUGPORT.print(PATCH);
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -102,12 +114,9 @@ bool diskReadSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, u
   bool rtn = true;
   uint8_t device = unit * 2 + disk;
   File dsk = SD.open(diskNames[device], FILE_READ);
-#if DEBUG
-  DEBUGPORT.write("R:");
-  DEBUGPORT.println(diskNames[device]);
-//  DEBUGPORT.println(PXPORT.available());
+  if (console) DEBUGPORT.write("R:");
+  if (console) DEBUGPORT.println(diskNames[device]);
   driveLedOn(device);
-#endif
   if(dsk) {
     int result;
     rtn = dsk.seek(track * DISK_BYTES_PER_TRACK + (sector-1) * DISK_BYTES_PER_SECTOR);
@@ -122,9 +131,7 @@ bool diskReadSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, u
      dsk.close();
    } else {
     rtn = false;
-#if DEBUG
-    DEBUGPORT.println("OPEN & READ FAIL");
-#endif
+    if (console) DEBUGPORT.println(F("OPEN & READ FAIL"));
   }
   return rtn;
 }
@@ -153,19 +160,16 @@ bool diskWriteSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, 
     dsk.seek(track * DISK_BYTES_PER_TRACK + (sector - 1) * DISK_BYTES_PER_SECTOR);
     dsk.write(buffer, DISK_BYTES_PER_SECTOR);
     dsk.close();
-#if DEBUG
-    DEBUGPORT.write("W:");
-    DEBUGPORT.println(diskNames[device]);
+
+    if (console) DEBUGPORT.write("W:");
+    if (console) DEBUGPORT.println(diskNames[device]);
 //    DEBUGPORT.println(PXPORT.available());
-  driveLedOn(device);
-#endif 
+    driveLedOn(device);
   }
   else
   {
     rtn = false;
-#if DEBUG
-    DEBUGPORT.println("OPEN & WRITE FAIL");
-#endif
+    if (console) DEBUGPORT.println("OPEN & WRITE FAIL");
   }
   return rtn;
 }
@@ -202,13 +206,12 @@ uint8_t hexNibble(uint8_t n)
 //////////////////////////////////////////////////////////////////////////////
 void showHex(uint8_t b)
 {
-#if DEBUG
-  DEBUGPORT.write(hexNibble( b>>4));
-  DEBUGPORT.write(hexNibble( b & 0xf));
-  DEBUGPORT.write( 0x20);
-  DEBUGPORT.write(13);
-  DEBUGPORT.write(10);
-#endif
+  if (console) {
+    DEBUGPORT.write(hexNibble( b >> 4));
+    DEBUGPORT.write(hexNibble( b & 0xf));
+    DEBUGPORT.write( 0x20);
+    DEBUGPORT.println();
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -223,7 +226,7 @@ void showHex(uint8_t b)
 bool isValidSID(uint8_t id)
 {
   bool rtn = false;
-  if(id == HX20 || id == PX8 || id == PX4)  // 20=HX20, 22=PX8, 23=PX4
+  if(id == 0x20 || id == 0x22 || id == 0x23)  // 20=HX20, 22=PX8, 23=PX4
   {
     rtn = true;
   }
@@ -242,7 +245,7 @@ bool isValidSID(uint8_t id)
 bool isValidDID(uint8_t id)
 {
   bool rtn = false;
-  if(id == MY_ID_1 || id == MY_ID_2)    // 31=First Disk (D,E) 32=Second Disk (F,G)
+  if(id == 0x31 || id == 0x32)    // 31=First Disk (D,E) 32=Second Disk (F,G)
   {
     rtn = true;
   }
@@ -260,7 +263,7 @@ bool isValidDID(uint8_t id)
 //////////////////////////////////////////////////////////////////////////////
 bool isValidFNC(uint8_t f)
 {
-  bool rtn = false;
+  bool rtn = true;
   switch(f) {
     case FN_DISK_RESET:
     case FN_DISK_SELECT:
@@ -290,7 +293,7 @@ uint8_t receiveByte()
   /// TODO:  fix rtn: uint8_t won't work right!
   uint8_t rtn;
   while( (rtn = PXPORT.read()) < 0);
-  
+  if (console) DEBUGPORT.print(rtn, HEX);
   return rtn;
 }
 
@@ -354,7 +357,6 @@ void sendHeader()
   latestSIZ = thisSIZ;
   cks -= thisSIZ;
   sendByte(cks);
-  
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -365,9 +367,7 @@ void sendHeader()
 //////////////////////////////////////////////////////////////////////////////
 void sendText()
 {
-#if DEBUG
-  DEBUGPORT.print("S_T: ");
-#endif
+  if (console) DEBUGPORT.print("S_T: ");
   uint8_t device;
   uint8_t cks = 0;
   uint8_t returnCode = 0;
@@ -375,12 +375,11 @@ void sendText()
   cks -= C_STX;
   uint8_t i = 0;
   bool returnStatus = true;
-#if DEBUG
-  {
+
+  if (console) {
     DEBUGPORT.print(C_STX);
     DEBUGPORT.print(" ");
   }
-#endif
   switch(latestFNC)
   {
 //////////////////////////////////////////////////////////////////////////////
@@ -389,14 +388,14 @@ void sendText()
     cks -= 0;
     break;
 //////////////////////////////////////////////////////////////////////////////
-    case FN_DISK_SELECT:   // see HAND-HELD-COMPUTER HX-20 Software ASSEMBLER DISASSEMBLER (SwAsDisAs.pdf)
-    sendByte(0);          
+    case FN_DISK_SELECT:   // ??? Where is this?  Not in PX8 OSRM ch 15 epsp.html
+    sendByte(0);
     
-#if DEBUG
-    DEBUGPORT.print("SEL");
-    DEBUGPORT.print(0);
-    DEBUGPORT.print(" ");
-#endif
+  if (console) {
+      DEBUGPORT.print("SEL");
+      DEBUGPORT.print(0);
+      DEBUGPORT.print(" ");
+  }
 
     cks -= 0;
     break;
@@ -421,9 +420,9 @@ void sendText()
     case FN_DISK_WRITE_SECTOR:
     device = selectedDevice * 2 + textBuffer[0] - 1;
     if (writeProtect[device] == true) {
-        DEBUGPORT.print("Device: ");
+        DEBUGPORT.print(F("Device: "));
         DEBUGPORT.print(device);
-        DEBUGPORT.println(" is write protected");  
+        DEBUGPORT.println(F(" is write protected"));  
         returnCode = BDOS_RC_WRITE_ERROR; // not the correct code, but the PX is happy.
     } else {
         returnStatus = diskWriteSector(selectedDevice, textBuffer[0] - 1, 
@@ -452,10 +451,10 @@ void sendText()
   }
   sendByte(C_ETX);
 
-#if DEBUG
-  DEBUGPORT.print(C_ETX);
-  DEBUGPORT.print(" ");
-#endif
+  if (console) {
+    DEBUGPORT.print(C_ETX);
+    DEBUGPORT.print(" ");
+  }
 
   cks -= C_ETX;
   sendByte(cks);
@@ -496,24 +495,25 @@ void stateMachine(uint8_t b)
     if(b == C_SEL)
     {
       state = ST_PS_SEL;
-      digitalWrite(DEBUGLED, HIGH);
+      debugLedOn();
     }
     else if(b == C_SOH)
     {
       latestCKS = C_SOH;
       state = ST_HD_SOH;
+      debugLedOn();
     }
     else if(b == C_STX)
     {
       latestCKS = b;
       textCount = 0;
       state = ST_TX_STX;
+      debugLedOn();
     }
     else if(b == C_EOT)
     {
-#if DEBUG
-       DEBUGPORT.println("IDLE got EOT");
-#endif
+
+    if (console) DEBUGPORT.println("IDLE got EOT");
     }
     else
     {
@@ -554,10 +554,7 @@ void stateMachine(uint8_t b)
       selectedDevice = latestDID - MY_ID_1;
       state = ST_PS_ENQ;
       
-#if DEBUG
-      DEBUGPORT.println("E_ACK");
-#endif
-
+      if (console) DEBUGPORT.println("E_ACK");
     }
     else
     {
@@ -617,11 +614,6 @@ void stateMachine(uint8_t b)
     }
     else
     {
-#if DEBUG
-      DEBUGPORT.println();
-      DEBUGPORT.print("Invalid function: ");
-      DEBUGPORT.println(b, HEX);
-#endif      
       state = ST_ERR;
     }
     break;
@@ -637,9 +629,7 @@ void stateMachine(uint8_t b)
     if(latestCKS == 0)
     {
       sendByte(C_ACK);
-#if DEBUG
-      DEBUGPORT.println("HD ACK");
-#endif
+      if (console) DEBUGPORT.println("HD ACK");
       state = ST_HD_CKS;
     }
     else
@@ -682,16 +672,12 @@ void stateMachine(uint8_t b)
     if(b == C_ETX)
     {
       state = ST_TX_ETX;
-#if DEBUG
-      DEBUGPORT.println("TX ETX");
-#endif
+      if (console) DEBUGPORT.println("TX ETX");
     }
     else
     {
       state = ST_ERR;
-#if DEBUG
-      DEBUGPORT.print("E");
-#endif
+      if (console) DEBUGPORT.print("E");
     }
     break;
 //////////////////////////////////////////////////////////////////////////////
@@ -701,9 +687,7 @@ void stateMachine(uint8_t b)
     {
        sendByte(C_ACK);
        state = ST_TX_CKS; 
-#if DEBUG
-      DEBUGPORT.println("Got TX CKS");
-#endif
+      if (console) DEBUGPORT.println("Got TX CKS");
     }
     else
     {
@@ -715,9 +699,7 @@ void stateMachine(uint8_t b)
     if(b == C_EOT)
     {
       sendHeader();
-#if DEBUG
-      DEBUGPORT.println("SENT HDR");
-#endif
+      if (console) DEBUGPORT.println("SENT HDR");
       state = ST_SENT_HDR;
     }
     else
@@ -731,9 +713,7 @@ void stateMachine(uint8_t b)
     {
       sendText();
       state = ST_SENT_TXT;
-#if DEBUG
-      DEBUGPORT.println("SENT_TXT");
-#endif
+      if (console) DEBUGPORT.println("SENT_TXT");
     }
     else
     {
@@ -747,27 +727,22 @@ void stateMachine(uint8_t b)
     {
       sendByte(C_EOT);
       state = ST_IDLE;
-#if DEBUG
-      DEBUGPORT.println("Sent EOT");
-#endif
-      digitalWrite(DEBUGLED, LOW);
+      if (console) DEBUGPORT.println("Sent EOT");
     }
     else if(b == C_NAK)
     {
       sendText();
     }
+    debugLedOff();
     break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_ERR:
-#if DEBUG
-    DEBUGPORT.println("Err");
-#endif
+    if (console) DEBUGPORT.println("Err");
     state = ST_IDLE;
     break;
 
     default:
     break;
-    
   }
 }
 
@@ -784,10 +759,10 @@ void loop()
   {
     if((av = PXPORT.available()) > 32)
     {
-#if DEBUG
-      DEBUGPORT.print('!'); 
-      DEBUGPORT.print(av);
-#endif
+      if (console) {
+        DEBUGPORT.print('!'); 
+        DEBUGPORT.print(av);
+      }
     }
     
     if (PXPORT.available() > 0) {   // Wait for something to come in from PX
@@ -804,7 +779,7 @@ void loop()
 }
 
 void printDirectory(File dir, int numTabs, bool recursive) {
-  while (true) {
+  while (console) {
 
     File entry =  dir.openNextFile();
     if (! entry) {
@@ -831,11 +806,9 @@ void printDirectory(File dir, int numTabs, bool recursive) {
 
 
 void commandCollector() {
-  if (DEBUGPORT.available() > 0) {
+  if (console && DEBUGPORT.available() > 0) {
     int inByte = DEBUGPORT.read();
     switch(inByte) {
-//    case '.':
-//    case '\r':
     case '\n':
       commandInterpreter();
       clearSerialBuffer();
@@ -872,24 +845,25 @@ void commandInterpreter() {
     case 'D':
     case 'd':
       root = SD.open("/");
-      DEBUGPORT.println("Root directory:");
+      DEBUGPORT.println(F("Root directory:"));
       printDirectory(root, 1, false);
       root.close();
       break;
     case 'H':
     case 'h':
     case '?':
-      DEBUGPORT.print("Usage (");
+      DEBUGPORT.println();
+      DEBUGPORT.print(F("Usage ("));
       printVersion();
-      DEBUGPORT.println("):");
+      DEBUGPORT.println(F("):"));
 
-      DEBUGPORT.println(" C                - temp debug for driveNames[][]");
-      DEBUGPORT.println(" D                - SD-card root directory");
-      DEBUGPORT.println(" H                - this help");
-      DEBUGPORT.println(" M[dnnnnnnnn.eee] - mount file nnnnnnnn.eee on drive d");
-      DEBUGPORT.println(" Nnnnnnnnn.eee    - create an image file nnnnnnnn.eee");
-      DEBUGPORT.println(" P[dw]            - write protect drive d; w=0 RW, w=1 RO");
-      DEBUGPORT.println(" R                - temp reset Arduino");
+      DEBUGPORT.println(F(" C                - temp debug for driveNames[][]"));
+      DEBUGPORT.println(F(" D                - SD-card root directory"));
+      DEBUGPORT.println(F(" H                - this help"));
+      DEBUGPORT.println(F(" M[dnnnnnnnn.eee] - mount file nnnnnnnn.eee on drive d"));
+      DEBUGPORT.println(F(" Nnnnnnnnn.eee    - create an image file nnnnnnnn.eee"));
+      DEBUGPORT.println(F(" P[dw]            - write protect drive d; w=0 RW, w=1 RO"));
+      DEBUGPORT.println(F(" R                - temp reset Arduino"));
       break;
     case 'M':
     case 'm':
@@ -909,8 +883,7 @@ void commandInterpreter() {
       break;
     default:
       DEBUGPORT.print(bufByte);
-      DEBUGPORT.print(" ");
-      DEBUGPORT.println("unsupported");
+      DEBUGPORT.println(F(" unsupported"));
       return;
   }
 }
@@ -927,23 +900,25 @@ void mountImage() {
   bool mountResult;
   char drive;
   if (setBufPointer == 1) { // list current mounted images
-    DEBUGPORT.println("Mounted files:");
-    DEBUGPORT.print(" D - ");
-    DEBUGPORT.print(diskNames[0]);
-    DEBUGPORT.print("  ");
-    DEBUGPORT.println((writeProtect[0]) ? "RO" : "RW");
-    DEBUGPORT.print(" E - ");
-    DEBUGPORT.print(diskNames[1]);
-    DEBUGPORT.print("  ");
-    DEBUGPORT.println((writeProtect[1]) ? "RO" : "RW");
-    DEBUGPORT.print(" F - ");
-    DEBUGPORT.print(diskNames[2]);
-    DEBUGPORT.print("  ");
-    DEBUGPORT.println((writeProtect[2]) ? "RO" : "RW");
-    DEBUGPORT.print(" G - ");
-    DEBUGPORT.print(diskNames[3]);
-    DEBUGPORT.print("  ");
-    DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW");
+    if (console) {
+      DEBUGPORT.println(F("Mounted files:"));
+      DEBUGPORT.print(" D - ");
+      DEBUGPORT.print(diskNames[0]);
+      DEBUGPORT.print("  ");
+      DEBUGPORT.println((writeProtect[0]) ? "RO" : "RW");
+      DEBUGPORT.print(" E - ");
+      DEBUGPORT.print(diskNames[1]);
+      DEBUGPORT.print("  ");
+      DEBUGPORT.println((writeProtect[1]) ? "RO" : "RW");
+      DEBUGPORT.print(" F - ");
+      DEBUGPORT.print(diskNames[2]);
+      DEBUGPORT.print("  ");
+      DEBUGPORT.println((writeProtect[2]) ? "RO" : "RW");
+      DEBUGPORT.print(" G - ");
+      DEBUGPORT.print(diskNames[3]);
+      DEBUGPORT.print("  ");
+      DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW");
+    }
   } else { // mount a new image to a drive
     uint8_t bufSize = setBufPointer;
     // Mdnnnnnnnn.eee > maximal command length = 14
@@ -952,28 +927,36 @@ void mountImage() {
     if (drive >= 'D' or drive <= 'G') {
       mountResult =  remount(bufSize, drive);
     } else {
-      DEBUGPORT.print("Illegal drive: ");
-      DEBUGPORT.println(drive);
+      if (console) {
+        DEBUGPORT.print(F("Illegal drive: "));
+        DEBUGPORT.println(drive);
+      }
     }
   }
   if (!mountResult) {
-      DEBUGPORT.print("Mounting failed for ");
+    if (console) {
+      DEBUGPORT.print(F("Mounting failed for "));
       DEBUGPORT.println(drive); 
+    }
   }
 }
 
 bool mountCheck(String filename) {
   File dsk = SD.open(filename, FILE_READ);
   if(dsk) {
-    DEBUGPORT.print("Opening '");
-    DEBUGPORT.print(filename);
-    DEBUGPORT.println("' successful");
+    if (console) {
+      DEBUGPORT.print(F("Opening '"));
+      DEBUGPORT.print(filename);
+      DEBUGPORT.println(F("' successful"));
+    }
     dsk.close();
     return true;
   }
-  DEBUGPORT.print("Opening '");
-  DEBUGPORT.print(filename);
-  DEBUGPORT.println("' failed");
+  if (console) {
+    DEBUGPORT.print(F("Opening '"));
+    DEBUGPORT.print(filename);
+    DEBUGPORT.println("' failed");
+  }
   return false;
 }
 
@@ -983,16 +966,18 @@ bool remount(uint8_t bufSize, char drive) {
     String filename = command.substring(2, bufSize);
     filename.toUpperCase();
     filename.trim(); // remove extra spaces
-    if (mountCheck(filename)) {
-      DEBUGPORT.print("New file name for ");
-      DEBUGPORT.print(drive);
-  //    DEBUGPORT.print(" [");
-  //    DEBUGPORT.print(driveIndex);
-      DEBUGPORT.print(": ");
-  //    DEBUGPORT.print(bufSize, DEC);
-  //    DEBUGPORT.print("] ");
-      DEBUGPORT.print(filename);
-      DEBUGPORT.println();
+    if (console) {
+      if (mountCheck(filename)) {
+        DEBUGPORT.print("New file name for ");
+        DEBUGPORT.print(drive);
+    //    DEBUGPORT.print(" [");
+    //    DEBUGPORT.print(driveIndex);
+        DEBUGPORT.print(": ");
+    //    DEBUGPORT.print(bufSize, DEC);
+    //    DEBUGPORT.print("] ");
+        DEBUGPORT.print(filename);
+        DEBUGPORT.println();
+      }
       filename.toCharArray(diskNames[driveIndex], filename.length()+1);
       diskNames[driveIndex][DRIVENAMESIZE-1] = 0x0; // probably just paranoia
       return true;
@@ -1003,16 +988,18 @@ bool remount(uint8_t bufSize, char drive) {
 
 // temp C command
 void checkName(uint8_t drive) {
-  DEBUGPORT.print("Drive: ");
-  DEBUGPORT.write(drive + 'D');
-  DEBUGPORT.print(": ");
-  for (uint8_t i = 0; i < DRIVENAMESIZE; i++) {
-    uint8_t nameByte = diskNames[drive][i];
-    if (nameByte < 0x10) DEBUGPORT.print("0");
-    DEBUGPORT.print(nameByte, HEX);
-    DEBUGPORT.print(" ");
+  if (console) {
+    DEBUGPORT.print(F("Drive: "));
+    DEBUGPORT.write(drive + 'D');
+    DEBUGPORT.print(": ");
+    for (uint8_t i = 0; i < DRIVENAMESIZE; i++) {
+      uint8_t nameByte = diskNames[drive][i];
+      if (nameByte < 0x10) DEBUGPORT.print("0");
+      DEBUGPORT.print(nameByte, HEX);
+      DEBUGPORT.print(" ");
+    }
+    DEBUGPORT.println();
   }
-  DEBUGPORT.println();
 }
 
 void fillTextBuffer(char filler) {
@@ -1029,16 +1016,17 @@ void newFile() {
   String filename = command.substring(1, bufSize);
   filename.toLowerCase();
   filename.trim(); // remove extra spaces
-
-  if (checkFilePresence(filename)) {
-    DEBUGPORT.print("File: ");
-    DEBUGPORT.print(filename);
-    DEBUGPORT.println(" exists. Aborting.");
-  } else {
-    createFile(filename);
-    DEBUGPORT.print("File created: ");
-    DEBUGPORT.println(filename);
-  } 
+  if (console) {
+    if (checkFilePresence(filename)) {
+      DEBUGPORT.print(F("File: "));
+      DEBUGPORT.print(filename);
+      DEBUGPORT.println(F(" exists. Aborting."));
+    } else {
+      createFile(filename);
+      DEBUGPORT.print("File created: ");
+      DEBUGPORT.println(filename);
+    } 
+  }
 }
 
 bool createFile(String filename) {
@@ -1049,16 +1037,16 @@ bool createFile(String filename) {
     dsk.seek(0);
     for (uint16_t sc = 0; sc < DISK_SECTORS; sc++) {
         dsk.write(textBuffer, DISK_BYTES_PER_SECTOR);
-        if (sc % DISK_SECTORS_PER_TRACK == 0) DEBUGPORT.print(".");
+        if (console && sc % DISK_SECTORS_PER_TRACK == 0) DEBUGPORT.print(".");
     }
-    DEBUGPORT.println();
+    if (console) DEBUGPORT.println();
     dsk.close();
   }
   else
   {
     rtn = false;
 #if DEBUG
-    DEBUGPORT.println("OPEN & WRITE FAIL");
+    DEBUGPORT.println(F("OPEN & WRITE FAIL"));
 #endif
   }
   return rtn;
@@ -1067,29 +1055,35 @@ bool createFile(String filename) {
 // P command
 void protect() {
    if (setBufPointer == 1) { // list current protect status
-     DEBUGPORT.print("D: ");
-     DEBUGPORT.println((writeProtect[0]) ? "RO" : "RW");
-     DEBUGPORT.print("E: ");
-     DEBUGPORT.println((writeProtect[1]) ? "RO" : "RW");
-     DEBUGPORT.print("F: ");
-     DEBUGPORT.println((writeProtect[2]) ? "RO" : "RW");
-     DEBUGPORT.print("G: ");
-     DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW");
+     if (console) {
+       DEBUGPORT.print("D: ");
+       DEBUGPORT.println((writeProtect[0]) ? "RO" : "RW");
+       DEBUGPORT.print("E: ");
+       DEBUGPORT.println((writeProtect[1]) ? "RO" : "RW");
+       DEBUGPORT.print("F: ");
+       DEBUGPORT.println((writeProtect[2]) ? "RO" : "RW");
+       DEBUGPORT.print("G: ");
+       DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW");
+     }
    } else if (setBufPointer == 3) {
      char drive = toupper(serialBuffer[1]);
      uint8_t driveIndex = drive - 'D';
      bool wpStatus = (serialBuffer[2] == '1') ? true : false;
      if (drive >= 'D' or drive <= 'G') {
        writeProtect[driveIndex] = wpStatus;
-       DEBUGPORT.print(drive);
-       DEBUGPORT.print(": ");
-       DEBUGPORT.println((writeProtect[driveIndex]) ? "RO" : "RW");
+       if (console) {
+         DEBUGPORT.print(drive);
+         DEBUGPORT.print(": ");
+         DEBUGPORT.println((writeProtect[driveIndex]) ? "RO" : "RW");
+       }
      } else {
-       DEBUGPORT.print("Illegal drive: ");
-       DEBUGPORT.println(drive);
+      if (console) {
+         DEBUGPORT.print("Illegal drive: ");
+         DEBUGPORT.println(drive);
+      }
      }
    } else {
-     DEBUGPORT.println("unsupported");
+     if (console) DEBUGPORT.println("unsupported");
    }
 }
 
@@ -1120,7 +1114,7 @@ void driveLedOn(uint8_t drive) {
       digitalWrite(G_LED, LOW);
       break;
     default:
-      DEBUGPORT.println("Unknown drive");
+      if (console) DEBUGPORT.println("Unknown drive");
   }
 }
 
@@ -1129,4 +1123,13 @@ void driveLedsOff() {
   digitalWrite(E_LED, HIGH);
   digitalWrite(F_LED, HIGH);
   digitalWrite(G_LED, HIGH);
+  ledOn = false;
+}
+
+void debugLedOn() {
+  digitalWrite(DEBUGLED, HIGH);
+}
+
+void debugLedOff() {
+  digitalWrite(DEBUGLED, LOW);
 }

@@ -2,10 +2,12 @@
 
 This is my fork of William R. Cooke's PFBDK sketch found at http://wrcooke.net/projects/pfbdk/pfbdk.html
 
-![PFBDK on a Arduino Mega 2560 in PETG box](PFBDKbox.jpg)
+![PFBDK on an Arduino Mega 2560 in a PETG box](PFBDKbox.jpg)
 
 The intend is to add some features making it somewhat more convenient to use. The route will be very incremental to keep 
 the basic functionality working.
+
+![PFBDK on an Arduino Pro Micro in a PLA box](pfbdkPMicroV1.0_front.jpg)
 
 The first feature is a command line on the debug/console port of the Arduino Mega. Its usage is now:
 
@@ -27,9 +29,10 @@ The N-command creates a new empty image file. It aborts when the image exists.
 
 The P command emulates the floppy write tabs.
 
-Another plan was to respect the Read-Only attribute for the image files, emulating the floppy write protect, but this 
-attribute is not supported in the SDLib library.
+Another added feature are the blinking lights.
+
+Another plan was to respect the Read-Only attribute for the image files, emulating the floppy write protect, but this attribute is not supported in the SDLib library.
 
 There is a 3D-printed case and pictures on my own page at: https://electrickery.nl/comp/tf20/pxdisk/
 
-fjkraan@electrickery.nl, 2023-04-08
+fjkraan@electrickery.nl, 2023-05-04
