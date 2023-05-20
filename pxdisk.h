@@ -9,7 +9,7 @@ bool console = false;
 #define PXPORT          Serial2
 #define DEBUG           true       // Change to true for debugging
 #define DEBUGPORT       Serial
-#define CS_PIN          53           // SD card CS pin
+#define CS_PIN          53         // SD card CS pin
 #define D_LED            9
 #define E_LED           10
 #define F_LED           11
@@ -52,7 +52,6 @@ enum Characters
   C_FMT_MS  =  0x00,         /// < Format message from Master to Slave
   C_FMT_SM  =  0x01,         /// < Format message from Slave to Master
   C_SEL     =  0x31,         /// < Select command
-  
 };
 
 const byte MY_ID_1 = 0x31;    /// < Id of first drive unit
@@ -67,7 +66,7 @@ enum DeviceID
   ID_PX8    = 0x22,
   ID_PX4    = 0x23,
   ID_FD1    = 0x31,
-  ID_FD2    = 0x32
+  ID_FD2    = 0x32,
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -95,7 +94,7 @@ enum States
   ST_TX_TXT,      /// < Received SIZ bytes of Text after STX       15
   ST_TX_ETX,      /// < Received ETX after Text                    16
   ST_TX_CKS,      /// < Received Text Checksum after ETX           17
-  ST_TX_ACK,      /// <  18
+  ST_TX_ACK,      /// <                                            18
 
   ST_SENT_HDR,    /// < Header was sent to Master                  19
   ST_SENT_TXT,    /// < Text was sent to Master                   :20
@@ -103,6 +102,8 @@ enum States
   ST_ERR,         /// < An error occurred in the state machine    :21 
   ST_UNDEFINED    /// < An undefined state -- should never happen :22
 };
+
+int oldState = ST_UNDEFINED; // Used to report state before ST_ERR
 
 //////////////////////////////////////////////////////////////////////////////
 ///  Functions codes used in CP/M disk systems
@@ -116,8 +117,8 @@ enum Functions
   FN_DISK_WRITE_HST       = 0x79,    /// < CP/M WRITEHST flushes buffers
   FN_DISK_COPY            = 0x7a,    /// < Copy a complete disk -- not used
   FN_DISK_FORMAT          = 0x7c,    /// < Format a blank disk  -- not used
+  FN_IMAGE_CMDS           = 0xE0,    /// < Commands managing disk images
 };
-
 
 //////////////////////////////////////////////////////////////////////////////
 ///  BDOS return codes from BIOS disk functions 
@@ -174,9 +175,19 @@ bool ledOn;
 uint32_t ledTime;
 #define LEDTIMEOUT 250
 
+enum PFBDKFuncs
+{
+  PFC_DIR    = 'D',
+  PFC_MOUNT  = 'M',
+  PFC_NEWIMG = 'N',
+  PFC_PROT   = 'P',
+  PFC_RST    = 'N',
+};
+
 //////////////////////////////////////////////////////////////////////////////
 /// for console/debug command interpreter
 
 #define SERIALBUFSIZE         30
+
 char serialBuffer[SERIALBUFSIZE];
 byte setBufPointer = 0;

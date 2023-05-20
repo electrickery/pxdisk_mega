@@ -11,7 +11,7 @@
 
 #define MAJOR_VERSION 1
 #define MINOR_VERSION 5
-#define PATCH         2
+#define PATCH         3
 
 #include <SPI.h>
 #include <SD.h>
@@ -19,6 +19,8 @@
 #include "pxdisk.h"
 
 File root;
+
+void(* resetFunc) (void) = 0; // create a standard reset function
 
 //////////////////////////////////////////////////////////////////////////////
 ///  @fn Setup
@@ -45,13 +47,15 @@ void setup()
     console = true;
   }
 
-  if (console) DEBUGPORT.println();
-  if (console) DEBUGPORT.println();
-  if (console) DEBUGPORT.print(F("Beginning PFBDK on "));
-  if (console) DEBUGPORT.print(F(BOARDTEXT));
-  if (console) DEBUGPORT.print(F(" "));
-  printVersion();
-  if (console) DEBUGPORT.println("...");
+  if (console) {
+    DEBUGPORT.println();
+    DEBUGPORT.println();
+    DEBUGPORT.print(F("Beginning PFBDK on "));
+    DEBUGPORT.print(F(BOARDTEXT));
+    DEBUGPORT.print(F(" v"));
+    printVersion();
+    DEBUGPORT.println("...");
+  }
 
   debugLedOn();
   pinMode(DEBUGLED, OUTPUT);
@@ -75,9 +79,11 @@ void setup()
   diskReadSector(1, 1, 0, 1, textBuffer);
 
   root = SD.open("/");
-  if (console) DEBUGPORT.println();
-  if (console) DEBUGPORT.println(F("Root directory:"));
-  printDirectory(root, 1, false);
+  if (console) {
+    DEBUGPORT.println();
+    DEBUGPORT.println(F("Root directory:"));
+    printDirectory(root, 1, false);
+  }
   root.close();
 
   // 
@@ -114,8 +120,8 @@ bool diskReadSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, u
   bool rtn = true;
   uint8_t device = unit * 2 + disk;
   File dsk = SD.open(diskNames[device], FILE_READ);
-  if (console) DEBUGPORT.write("R:");
-  if (console) DEBUGPORT.println(diskNames[device]);
+//  if (console) DEBUGPORT.write("R:");
+//  if (console) DEBUGPORT.println(diskNames[device]);
   driveLedOn(device);
   if(dsk) {
     int result;
@@ -161,8 +167,8 @@ bool diskWriteSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, 
     dsk.write(buffer, DISK_BYTES_PER_SECTOR);
     dsk.close();
 
-    if (console) DEBUGPORT.write("W:");
-    if (console) DEBUGPORT.println(diskNames[device]);
+//    if (console) DEBUGPORT.write("W:");
+//    if (console) DEBUGPORT.println(diskNames[device]);
 //    DEBUGPORT.println(PXPORT.available());
     driveLedOn(device);
   }
@@ -293,7 +299,7 @@ uint8_t receiveByte()
   /// TODO:  fix rtn: uint8_t won't work right!
   uint8_t rtn;
   while( (rtn = PXPORT.read()) < 0);
-  if (console) DEBUGPORT.print(rtn, HEX);
+//  if (console) DEBUGPORT.print(rtn, HEX);
   return rtn;
 }
 
@@ -367,7 +373,7 @@ void sendHeader()
 //////////////////////////////////////////////////////////////////////////////
 void sendText()
 {
-  if (console) DEBUGPORT.print("S_T: ");
+//  if (console) DEBUGPORT.print("S_T: ");
   uint8_t device;
   uint8_t cks = 0;
   uint8_t returnCode = 0;
@@ -376,53 +382,53 @@ void sendText()
   uint8_t i = 0;
   bool returnStatus = true;
 
-  if (console) {
-    DEBUGPORT.print(C_STX);
-    DEBUGPORT.print(" ");
-  }
+//  if (console) {
+//    DEBUGPORT.print(C_STX);
+//    DEBUGPORT.print(" ");
+//  }
   switch(latestFNC)
   {
 //////////////////////////////////////////////////////////////////////////////
     case FN_DISK_RESET:
-    sendByte(returnCode);       // return success
-    cks -= 0;
-    break;
+      sendByte(returnCode);       // return success
+      cks -= 0;
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case FN_DISK_SELECT:   // ??? Where is this?  Not in PX8 OSRM ch 15 epsp.html
-    sendByte(0);
-    
-  if (console) {
-      DEBUGPORT.print("SEL");
-      DEBUGPORT.print(0);
-      DEBUGPORT.print(" ");
-  }
-
-    cks -= 0;
-    break;
+      sendByte(0);
+  //  if (console) {
+  //      DEBUGPORT.print("SEL");
+  //      DEBUGPORT.print(0);
+  //      DEBUGPORT.print(" ");
+  //  }
+      cks -= 0;
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case FN_DISK_READ_SECTOR:
-    returnStatus = diskReadSector(selectedDevice, textBuffer[0] - 1, 
-                      textBuffer[1], textBuffer[2], textBuffer);
-    if(!returnStatus) // error!
-    {
-      returnCode = BDOS_RC_READ_ERROR;
-    }
-    for(int i = 0; i < 128; i++)
-    {
-      uint8_t byt = textBuffer[i];
-      sendByte(byt);
-      cks -= byt;
-    }
-    sendByte(returnCode);  // return code
-    cks -= 0;
-    break;
+      returnStatus = diskReadSector(selectedDevice, textBuffer[0] - 1, 
+                        textBuffer[1], textBuffer[2], textBuffer);
+      if(!returnStatus) // error!
+      {
+        returnCode = BDOS_RC_READ_ERROR;
+      }
+      for(int i = 0; i < MAX_TEXT; i++)
+      {
+        uint8_t byt = textBuffer[i];
+        sendByte(byt);
+        cks -= byt;
+      }
+      sendByte(returnCode);  // return code
+      cks -= 0;
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case FN_DISK_WRITE_SECTOR:
     device = selectedDevice * 2 + textBuffer[0] - 1;
     if (writeProtect[device] == true) {
-        DEBUGPORT.print(F("Device: "));
-        DEBUGPORT.print(device);
-        DEBUGPORT.println(F(" is write protected"));  
+//        if (console) {
+//            DEBUGPORT.print(F("Device: "));
+//            DEBUGPORT.print(device);
+//            DEBUGPORT.println(F(" is write protected")); 
+//        } 
         returnCode = BDOS_RC_WRITE_ERROR; // not the correct code, but the PX is happy.
     } else {
         returnStatus = diskWriteSector(selectedDevice, textBuffer[0] - 1, 
@@ -437,24 +443,45 @@ void sendText()
     break;
 //////////////////////////////////////////////////////////////////////////////
     case FN_DISK_WRITE_HST:   // We always write, so nothing needs to flush
-    sendByte(0);
-    break;
+      sendByte(0);
+      break;
 //////////////////////////////////////////////////////////////////////////////
-    FN_DISK_COPY:             // Not currently supported
-    break;
+    case FN_DISK_COPY:             // Not currently supported
+      if (console) DEBUGPORT.println(F("FN_DISK_COPY not supported"));
+      sendByte(C_NAK);
+      break;
 //////////////////////////////////////////////////////////////////////////////
-    FN_DISK_FORMAT:           // Not currently supported
-    break;
+    case FN_DISK_FORMAT:           // Not currently supported
+      if (console) DEBUGPORT.println(F("FN_DISK_FORMAT not supported"));
+      sendByte(C_NAK);
+      break;
+    case FN_IMAGE_CMDS:
+      if (console) {
+        DEBUGPORT.println(F("FN_IMAGE_CMDS not supported"));
+        DEBUGPORT.print(textBuffer[1], HEX); DEBUGPORT.print(" "); 
+        DEBUGPORT.print(textBuffer[2], HEX); DEBUGPORT.print(" "); 
+        DEBUGPORT.print(textBuffer[3], HEX); DEBUGPORT.println();
+      }
+      // interim write protect code
+      setBufPointer = 3;
+      serialBuffer[0] = textBuffer[1]; // not used in protect()
+      serialBuffer[1] = textBuffer[2];
+      serialBuffer[2] = textBuffer[3];
+      protect(); // execute P command
+      
+//      loadDirectory(root, 0);
+      sendByte(returnCode);
+      break;
 
     default:
     break;
   }
   sendByte(C_ETX);
 
-  if (console) {
-    DEBUGPORT.print(C_ETX);
-    DEBUGPORT.print(" ");
-  }
+//  if (console) {
+//    DEBUGPORT.print(C_ETX);
+//    DEBUGPORT.print(" ");
+//  }
 
   cks -= C_ETX;
   sendByte(cks);
@@ -478,266 +505,284 @@ void stateMachine(uint8_t b)
   switch(state)
   {
     case ST_UNDEFINED:              // Should never happen, but you never know
-    break;
+      break;
 ///////////////////////////////////////////////////////////////////////////////
     case ST_BEGIN:                  // Starting state
-    if(b == C_SEL)
-    {
-      state = ST_PS_SEL;
-    }
-    else
-    {
-      // do nothing. Wait for C_SEL
-    }
-    break;
+      if(b == C_SEL)
+      {
+        state = ST_PS_SEL;
+      }
+      else
+      {
+        // do nothing. Wait for C_SEL
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
    case ST_IDLE:
-    if(b == C_SEL)
-    {
-      state = ST_PS_SEL;
-      debugLedOn();
-    }
-    else if(b == C_SOH)
-    {
-      latestCKS = C_SOH;
-      state = ST_HD_SOH;
-      debugLedOn();
-    }
-    else if(b == C_STX)
-    {
-      latestCKS = b;
-      textCount = 0;
-      state = ST_TX_STX;
-      debugLedOn();
-    }
-    else if(b == C_EOT)
-    {
-
-    if (console) DEBUGPORT.println("IDLE got EOT");
-    }
-    else
-    {
-      // state = ST_ERR;  just stay where we are on unrecognized char
-      //  get 00 when px8 turned off
-    }
-    break;
+     if(b == C_SEL)
+     {
+       state = ST_PS_SEL;
+       debugLedOn();
+     }
+     else if(b == C_SOH)
+     {
+       latestCKS = C_SOH;
+       state = ST_HD_SOH;
+       debugLedOn();
+     }
+     else if(b == C_STX)
+     {
+       latestCKS = b;
+       textCount = 0;
+       state = ST_TX_STX;
+       debugLedOn();
+     }
+     else if(b == C_EOT)
+     {
+//     if (console) DEBUGPORT.println("IDLE got EOT");
+     }
+     else
+     {
+       // state = ST_ERR;  just stay where we are on unrecognized char
+       //  get 00 when px8 turned off
+     }
+     break;
 
 //////////////////////////////////////// Select / Poll ///////////////////////
     case ST_PS_SEL:
-    if(isValidDID(b))
-    {
-      latestDID = b;
-      state = ST_PS_DID;
-    }
-    else
-    {
-      state = ST_ERR;
-    }
-    break;
+      if(isValidDID(b))
+      {
+        latestDID = b;
+        state = ST_PS_DID;
+      }
+      else
+      {
+        oldState = state;
+        state = ST_ERR;
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_PS_DID:
-    if(isValidSID(b))
-    {
-      latestSID = b;
-      state = ST_PS_SID;
-    }
-    else
-    {
-      state = ST_ERR;
-    }
-    break;
+      if(isValidSID(b))
+      {
+        latestSID = b;
+        state = ST_PS_SID;
+      }
+      else
+      {
+        oldState = state;
+        state = ST_ERR;
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_PS_SID:
-    if(b == C_ENQ)
-    {
-      sendByte(C_ACK);
-      selectedDevice = latestDID - MY_ID_1;
-      state = ST_PS_ENQ;
-      
-      if (console) DEBUGPORT.println("E_ACK");
-    }
-    else
-    {
-      sendByte(C_NAK);
-      state = ST_ERR;
-    }
-    break;
+      if(b == C_ENQ)
+      {
+          sendByte(C_ACK);
+          selectedDevice = latestDID - MY_ID_1;
+          state = ST_PS_ENQ;
+          
+  //        if (console) DEBUGPORT.println("E_ACK");
+      }
+      else
+      {
+        sendByte(C_NAK);
+        oldState = state;
+        state = ST_ERR;
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
    case ST_PS_ENQ:
-    if(b == C_SOH)
-    {
-      latestCKS = b;
-      state = ST_HD_SOH;
-    }
-    else
-    {
-      state = ST_ERR;
-    }
-    break;
+     if(b == C_SOH)
+     {
+       latestCKS = b;
+       state = ST_HD_SOH;
+     }
+     else
+     {
+       oldState = state;
+       state = ST_ERR;
+     }
+     break;
 //////////////////////////////////   Header  /////////////////////////////////
     case ST_HD_SOH:
-    if(b == C_FMT_MS)
-    {
-      latestCKS += b;
-      state = ST_HD_FMT;
-    }
-    else
-    {
-      state = ST_ERR;
-    }
-    break;
+      if(b == C_FMT_MS)
+      {
+        latestCKS += b;
+        state = ST_HD_FMT;
+      }
+      else
+      {
+        oldState = state;
+        state = ST_ERR;
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_HD_FMT:
-    if(isValidDID(b))
-    {
-      latestCKS += b;
-      latestDID = b;
-      state = ST_HD_DID;
-    }
-    break;
+      if(isValidDID(b))
+      {
+        latestCKS += b;
+        latestDID = b;
+        state = ST_HD_DID;
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_HD_DID:
-    if(isValidSID(b))
-    {
-      latestSID = b;
-      latestCKS += b;
-      state = ST_HD_SID;
-    }
-    break;
+      if(isValidSID(b))
+      {
+        latestSID = b;
+        latestCKS += b;
+        state = ST_HD_SID;
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_HD_SID:
-    if(isValidFNC(b))
-    {
-      latestFNC = b;
-      latestCKS += b;
-      state = ST_HD_FNC;
-    }
-    else
-    {
-      state = ST_ERR;
-    }
-    break;
+      if (isValidFNC(b))
+      {
+        latestFNC = b;
+        latestCKS += b;
+        state = ST_HD_FNC;
+      }
+      else
+      {
+        oldState = state;
+        state = ST_ERR;
+//        if (console) {
+//          DEBUGPORT.print(F(" >>>> Invalid command: "));
+//          DEBUGPORT.print(b, HEX);
+//          DEBUGPORT.println();
+//        }
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_HD_FNC:
-    latestSIZ = b;
-    latestCKS += b;
-    state = ST_HD_SIZ;
-    break;
+      latestSIZ = b;
+      latestCKS += b;
+      state = ST_HD_SIZ;
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_HD_SIZ:
-    latestCKS += b;
-    if(latestCKS == 0)
-    {
-      sendByte(C_ACK);
-      if (console) DEBUGPORT.println("HD ACK");
-      state = ST_HD_CKS;
-    }
-    else
-    {
-      sendByte(C_NAK);
-      state = ST_ERR;
-    }
-    break;
+      latestCKS += b;
+      if(latestCKS == 0)
+      {
+        sendByte(C_ACK);
+  //      if (console) DEBUGPORT.println("HD ACK");
+        state = ST_HD_CKS;
+      }
+      else
+      {
+        sendByte(C_NAK);
+        oldState = state;
+        state = ST_ERR;
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_HD_CKS:
-    if(b == C_STX)
-    {
-      latestCKS = b;
-      textCount = 0;
-      state = ST_TX_STX;
-    }
-    else
-    {
-      state = ST_ERR;
-    }
-    break;
+      if(b == C_STX)
+      {
+        latestCKS = b;
+        textCount = 0;
+        state = ST_TX_STX;
+      }
+      else
+      {
+        oldState = state;
+        state = ST_ERR;
+      }
+      break;
 //////////////////////////////////////// Text ////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////
 
     case ST_TX_STX:
-    textBuffer[textCount] = b;
-    latestCKS += b;
-    if(textCount == latestSIZ)
-    {
-      state = ST_TX_TXT;
-    }
-    else
-    {
-      textCount++;
-    }
-    break;
+      textBuffer[textCount] = b;
+      latestCKS += b;
+      if(textCount == latestSIZ)
+      {
+        state = ST_TX_TXT;
+      }
+      else
+      {
+        textCount++;
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_TX_TXT:
-    latestCKS += b;
-    if(b == C_ETX)
-    {
-      state = ST_TX_ETX;
-      if (console) DEBUGPORT.println("TX ETX");
-    }
-    else
-    {
-      state = ST_ERR;
-      if (console) DEBUGPORT.print("E");
-    }
-    break;
+      latestCKS += b;
+      if(b == C_ETX)
+      {
+        state = ST_TX_ETX;
+  //      if (console) DEBUGPORT.println("TX ETX");
+      }
+      else
+      {
+        oldState = state;
+        state = ST_ERR;
+  //      if (console) DEBUGPORT.print("E");
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_TX_ETX:
-    latestCKS += b;
-    if(latestCKS == 0)
-    {
-       sendByte(C_ACK);
-       state = ST_TX_CKS; 
-      if (console) DEBUGPORT.println("Got TX CKS");
-    }
-    else
-    {
-      state = ST_ERR;
-    }
-    break;
+      latestCKS += b;
+      if(latestCKS == 0)
+      {
+         sendByte(C_ACK);
+         state = ST_TX_CKS; 
+  //      if (console) DEBUGPORT.println("Got TX CKS");
+      }
+      else
+      {
+        oldState = state;
+        state = ST_ERR;
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_TX_CKS:
-    if(b == C_EOT)
-    {
-      sendHeader();
-      if (console) DEBUGPORT.println("SENT HDR");
-      state = ST_SENT_HDR;
-    }
-    else
-    {
-      
-    }
-    break;
+      if(b == C_EOT)
+      {
+        sendHeader();
+  //      if (console) DEBUGPORT.println("SENT HDR");
+        state = ST_SENT_HDR;
+      }
+      else
+      {
+        
+      }
+      break;
 //////////////////////////////////////////////////////////////////////////////
    case ST_SENT_HDR:
-    if(b == C_ACK)
-    {
-      sendText();
-      state = ST_SENT_TXT;
-      if (console) DEBUGPORT.println("SENT_TXT");
-    }
-    else
-    {
-      state = ST_ERR;
-    }
-    break;
+     if(b == C_ACK)
+     {
+       sendText();
+       state = ST_SENT_TXT;
+//       if (console) DEBUGPORT.println("SENT_TXT");
+     }
+     else
+     {
+       oldState = state;
+       state = ST_ERR;
+     }
+     break;
 
 //////////////////////////////////////////////////////////////////////////////
     case ST_SENT_TXT:
-    if(b == C_ACK)
-    {
-      sendByte(C_EOT);
-      state = ST_IDLE;
-      if (console) DEBUGPORT.println("Sent EOT");
-    }
-    else if(b == C_NAK)
-    {
-      sendText();
-    }
-    debugLedOff();
+      if(b == C_ACK)
+      {
+        sendByte(C_EOT);
+        state = ST_IDLE;
+  //      if (console) DEBUGPORT.println("Sent EOT");
+      }
+      else if(b == C_NAK)
+      {
+        sendText();
+      }
+      debugLedOff();
     break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_ERR:
-    if (console) DEBUGPORT.println("Err");
+    if (console) {
+      DEBUGPORT.print("Err; old state was: ");
+      DEBUGPORT.print(oldState); 
+    }
     state = ST_IDLE;
     break;
 
@@ -778,10 +823,10 @@ void loop()
   }
 }
 
-void printDirectory(File dir, int numTabs, bool recursive) {
+void printDirectory(File root, int numTabs, bool recursive) {
   while (console) {
 
-    File entry =  dir.openNextFile();
+    File entry =  root.openNextFile();
     if (! entry) {
       // no more files
       break;
@@ -804,6 +849,43 @@ void printDirectory(File dir, int numTabs, bool recursive) {
   } 
 }
 
+void loadDirectory(File root, uint8_t dirOffset) {
+  uint8_t entryCount = 0;
+#define ENTRIESPERMESSAGE 4
+#define EntrySize 0x20
+#define EntryItemSize     0x10
+  int entryNameOffset = 0;
+  int entrySizeOffset = 0x10;
+  
+  while (console) {
+    // skip previously send entries
+//    for (uint8_t dirIndex = 0; dirIndex < (dirOffset * ENTRIESPERMESSAGE); dirIndex++) {
+//      File tmpEntry = root.openNextFile();
+//      DEBUGPORT.print(dirIndex);
+//      DEBUGPORT.print("  ");
+//      DEBUGPORT.println(tmpEntry.name());
+//    }
+    File entry =  root.openNextFile();
+    if (! entry) {
+      // no more files
+      break;
+    }
+    if (entryCount >= ENTRIESPERMESSAGE) {
+      break;
+    }
+
+    String name = entry.name();
+    String size = String(entry.size());
+    DEBUGPORT.print(name);
+    name.toCharArray(textBuffer[entryNameOffset], EntryItemSize);
+    DEBUGPORT.println(size);
+    size.toCharArray(textBuffer[entrySizeOffset], EntryItemSize);
+    entry.close();
+    entryCount++;
+    entryNameOffset += EntrySize;
+    entrySizeOffset += EntrySize;
+    }
+}
 
 void commandCollector() {
   if (console && DEBUGPORT.available() > 0) {
@@ -828,7 +910,6 @@ void commandCollector() {
   }
 }
 
-void(* resetFunc) (void) = 0; // create a standard reset function
 
 void commandInterpreter() {
   byte bufByte = serialBuffer[0];
