@@ -34,19 +34,19 @@ CALLX           EQU     WBOOT   +66H    ; Call extra entry
 ;       System area
 ;
 DISBNK          EQU     0F52EH          ;
-PKT_TOP         EQU     0F931H          ;
+PKT_TOP         EQU     0F931H          ; Epsp header (0-4) and text (5- ) send buffer
 PKT_FMT         EQU     PKT_TOP
-PKT_RDT         EQU     0F936H
+PKT_RDT         EQU     0F936H          ; Epsp text receive buffer
 SCRCH_BUF       EQU     0F93AH          ;
 PKT_STS         EQU     0F9B6H
 ARGS            EQU     00080h            ; 80h arg-size, 81h is space, 82h 1st arg char
 ;
 ;       Bank value
 ;
-SYSBANK         EQU     0FFH            ; System bank
-BANK0           EQU     000H            ; Bank 0 (RAM)
-BANK1           EQU     001H            ; Bank 1 (ROM capsel 1)
-BANK2           EQU     002H            ; Bank 2 (ROM capsel  2)
+SYSBANK         EQU     0FFH    ; System bank
+BANK0           EQU     000H    ; Bank 0 (RAM)
+BANK1           EQU     001H    ; Bank 1 (ROM capsel 1)
+BANK2           EQU     002H    ; Bank 2 (ROM capsel  2)
 ;
 ;       OS ROM jump table
 ;
@@ -57,16 +57,17 @@ EPSPRCV         EQU     0033H
 FMT             EQU     00h
 DID             EQU     31H
 SID             EQU     23H
-FNC             EQU     0E0H
-;SIZ             EQU     03H
+FNC             EQU     0E0H    ; Epsp command selected for PFBDK management. 
+                                ; first byte in the text block is the PFBDK command
+;SIZ             EQU     03H    ; Variable value; 0 for one byte, 2 for three bytes
 ;
 ;
-BREAKKEY        EQU     03H     ;BREAK key code
-LF              EQU     0AH     ;Line Feed code
-CR              EQU     0DH     ;Carriage return code
-SPCCD           EQU     20H     ;Space code
-PERIOD          EQU     2EH     ;Period code
-QMARK           EQU     3FH     ;Question mark code (3FH)
+BREAKKEY        EQU     03H     ; BREAK key code
+LF              EQU     0AH     ; Line Feed code
+CR              EQU     0DH     ; Carriage return code
+SPCCD           EQU     20H     ; Space code
+PERIOD          EQU     2EH     ; Period code
+QMARK           EQU     3FH     ; Question mark code (3FH)
 ;
 ;
 TERMINATOR      EQU     00H     ;Terminator code
@@ -87,9 +88,6 @@ MAIN:
 READ:
         CALL    BANNER
 
-        CALL    BREAKCHK        ; Check BREAK key (CTRL/C) press or not
-        JP      Z,ABORT
-        
         CALL    CHKARGS         ; Check arguments        
         JP      NZ, USAGE
 ;
@@ -101,7 +99,6 @@ READ:
         JP      NZ,READERR      ; Read error.
 ;
         CALL    PRDATA          ; Display FDD data.
-        
 ;
         JP      WBOOT
 ;
@@ -120,17 +117,17 @@ READ:
 ;
 ;       CAUTION :
 SENDCMD:
-        LD      HL,PKT_FMT      ; EPSP packet top address.
+        LD      HL, PKT_TOP     ; EPSP packet top address.
         XOR     A               ;  Set FMT code.
-        LD      (HL),A          ;
+        LD      (HL), A         ;
         INC     HL              ;
-        LD      (HL),DID        ;  Set DID code.
+        LD      (HL), DID       ;  Set DID code.
         INC     HL              ;
-        LD      (HL),SID        ;  Set SID code.
+        LD      (HL), SID       ;  Set SID code.
         INC     HL              ;
-        LD      (HL),FNC        ;  Set FNC code.
+        LD      (HL), FNC       ;  Set FNC code.
         INC     HL              ;
-        CALL    GETARGCNT
+        CALL    GETARGCNT       ; Expect 0 or 2
         LD      (HL), A
         INC     HL              ;
         LD      A,'P'           ;  Set P command.
@@ -164,7 +161,7 @@ CHKARGS:
         
         LD      A, (HL)         ; args length
         LD      (SIZ), A
-        CP      '0'
+        CP      0
         JR      Z, CANOARG
         
         INC     HL              ; should be a space
@@ -270,11 +267,6 @@ PREND:
         CALL    DSPMSG
         RET
 
-
-
-
-
-
 ;
 ;********************************
 ;*                              *
@@ -291,6 +283,7 @@ ABORT:
         CALL    DSPMSG
         JP      WBOOT
 USAGE:
+        CALL    ARGDUMP
         LD      HL, USAGEMSG
         CALL    DSPMSG
         JP      WBOOT
@@ -299,7 +292,14 @@ READERR:
         CALL    DSPMSG
         JP      WBOOT
 
-
+ARGDUMP:
+        LD      C, '"'
+        CALL    CONOUT
+        LD      HL, ARGS + 2    ; skip the arg size and space, assume
+        CALL    DSPMSG          ;  the 0 at the end is structural
+        LD      C, '"'
+        CALL    CONOUT
+        RET
 ;
 ;*************
 ;*   DSPMSG   *
@@ -328,153 +328,6 @@ DSPMSG:
         INC     HL              ;Update pointer
         JR      DSPMSG          ;Repeat DSPMSG until find terminator
 ;
-;
-;
-;***************
-;*   DSPDATA   *
-;***************
-;
-;       Convert 1 byte data, that addressed by IX, to HET format and
-;       LIST out it to printer. And store character image of data to
-;       CHRPKT.
-;
-;       on entry : B = Data quantity that to be LIST out
-;                  (READPTR) = Indicate data address
-;
-;       on exit  : (READPTR) = Next data address
-;                  Character image of datas are stored behind CHRPKT.
-;
-;       Registers are not preserved.
-;
-DSPDATA:
-        LD      A,B
-        OR      A
-        RET     Z               ;If data quqntity = 0 then return
-;
-        LD      HL,CHRPKT       ;HL=Start address of character data
-        LD      IX,(READPTR+0)    ;IX=MCT data top address
-DSPDT00:
-        PUSH    BC
-        PUSH    HL
-        PUSH    IX
-;
-        LD      A,(IX+0)          ;A=DATA
-        LD      (HL),PERIOD     ;Store PERIOD mark (default data)
-        BIT     7,A             ;If data is 80H through FFH or 00H through
-        JR      NZ,DSPDT10      ;1FH then change to PERIOD mark and store
-        CP      SPCCD           ;it in CHRPKT
-        JR      C,DSPDT10       ;
-        LD      (HL),A          ;Store read data to CHRPKT
-DSPDT10:
-        CALL    TOHEX           ;Convert to HEX
-        PUSH    BC              ;Save lower 4 bit hex data
-        LD      C,B
-        CALL    CONOUT          ;LIST out upper 4bit hex data
-        POP     BC
-        CALL    CONOUT          ;LIST   out lower 4bit hex data
-        LD      C,SPCCD
-        CALL    CONOUT          ;List out space
-;
-        POP     IX
-        POP     HL
-        POP     BC
-        INC     HL
-        INC     IX
-        DJNZ    DSPDT00         ;Repeat until B=0
-;
-        LD      (READPTR),IX    ;Store next data address
-        LD      (HL),TERMINATOR ;Store terminator of character data
-;
-        RET
-;
-;*************
-;*   TOHEX   *
-;*************
-;
-;       Convert input data (A reg) to 2 byte HEX data (BC reg)
-;
-;       on entry :  A = input data
-;
-;       on exit  : BC = HEX data of input data
-;                       (B = upper 4bit data)
-;                       (C = lower 4bit data)
-;
-TOHEX:
-        PUSH    AF
-;
-        RRA                     ;Shift upper4bit to lower 4 bit
-        RRA
-        RRA
-        RRA
-;
-        CALL    TOHEX10         ;Convert upper 4bit
-        LD      B,A
-;
-        POP     AF              ;Convert lower 4bit
-        CALL    TOHEX10
-        LD      C,A
-        RET
-;
-;
-;***************
-;*   TOHEX10   *
-;***************
-;
-;       Convert lower 4bit of input data to HED dat.
-;
-;          entry : A = input data
-;       on exit  : A = HEX data of input data lower 4bit
-;
-TOHEX10:
-        AND     0FH             ;Mask upper 4bit
-        CP      0AH 
-        JR      C,TOHEX20
-;
-        ADD     A,07H           ;If 0AH through 0FH then "A" to "F"
-;
-TOHEX20:
-        ADD     A,30H
-        RET
-;
-;****************
-;*   BREAKCHK   *
-;****************
-;
-;       Check BREAK key (CTRL/C) press or not
-;
-;       on entry : none
-;
-;       on exit  : Z flag = 1 --- Break key is pressed
-;                         = 0 --- Break key is not pressed
-;
-BREAKCHK:
-        CALL    CONST
-        INC     A
-        RET     NZ              ;If key buffer is empty the return
-;
-        CALL    CONIN           
-        CP      BREAKKEY        ;Check bREAK key or not
-        RET     Z               ;If BREAK key then return
-        JR      BREAKCHK        ;Repeat BREAKCHK until buffer is empty
-;
-CHKWAIT:
-        CALL    CONST
-        INC     A
-        RET     NZ
-;
-        CALL    CONIN
-        CP      BREAKKEY
-        JP      Z,WBOOT
-        CP      SPCCD
-        JR      NZ,CHKWAIT
-;
-        CALL    CONIN
-        CP      BREAKKEY
-        JP      Z,WBOOT
-        RET
-
-;
-;
 ;************************
 ;*                      *
 ;*      WORK AREA       *
@@ -486,12 +339,8 @@ DRIVE:
         DEFB      'D'
 WPFLAG:
         DEFB      '1'
-READPTR:
-        DEFS      2               ;Pointer of READPKT
-CHRPKT:
-        DEFS      20              ;Character data packet of MCT read data
 SIZ:    
-        DEFB      01h
+        DEFB      00h
 ;
 ;************************
 ;*                      *
@@ -499,13 +348,9 @@ SIZ:
 ;*                      *
 ;************************
 ;
-CRLFMSG:  
-        DEFB      CR, LF
-        DEFB      TERMINATOR
 ;
 BANNERMSG:
-        DEFB      CR, LF
-        DEFB      'PFBDK 1.0'
+        DEFB      'PFWP1.0'
         DEFB      CR, LF
         DEFB      TERMINATOR
         
