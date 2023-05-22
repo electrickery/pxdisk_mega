@@ -470,23 +470,23 @@ void sendText()
       if (console) {
         DEBUGPORT.println(F("FN_IMAGE_CMDS not very supported"));
         // debug echo 
-        for (uint8_t i = 0; i < latestSIZ; i++) {
-          DEBUGPORT.print(textBuffer[i], HEX); DEBUGPORT.print(" "); 
-        }
-        DEBUGPORT.println();
+//        for (uint8_t i = 0; i < latestSIZ; i++) {
+//          DEBUGPORT.print(textBuffer[i], HEX); DEBUGPORT.print(" "); 
+//        }
+//        DEBUGPORT.println();
       }
       managementCommand = latestE0Command;
       setBufPointer = receivedSize + 1;
       for (uint8_t i = 0; i < latestSIZ; i++) {
         serialBuffer[i] = textBuffer[i]; // prep the commandInterpreter
-        if (console) {
-          if (textBuffer[i] > 0x01F && textBuffer[i] < 0x7F) {
-            DEBUGPORT.print(textBuffer[i]);
-          } else {
-            DEBUGPORT.print(textBuffer[i], HEX);
-            DEBUGPORT.print("h ");
-          }
-        }
+//        if (console) {
+//          if (textBuffer[i] > 0x01F && textBuffer[i] < 0x7F) {
+//            DEBUGPORT.print(textBuffer[i]);
+//          } else {
+//            DEBUGPORT.print(textBuffer[i], HEX);
+//            DEBUGPORT.print("h ");
+//          }
+//        }
       }
       if (console) DEBUGPORT.println();
       commandInterpreter(); // execute command
@@ -512,7 +512,6 @@ void sendText()
   cks -= C_ETX;
   sendByte(cks);
 }
-
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1196,7 +1195,7 @@ void protect() {
 }
 
 void reportP() {
-//  if (consoleCommand) {
+  if (consoleCommand) {
     DEBUGPORT.print("D: ");
     DEBUGPORT.println((writeProtect[0]) ? "RO" : "RW");
     DEBUGPORT.print("E: ");
@@ -1205,14 +1204,14 @@ void reportP() {
     DEBUGPORT.println((writeProtect[2]) ? "RO" : "RW");
     DEBUGPORT.print("G: ");
     DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW"); 
-//  } else {
-    #define LF 0x0A
+  } else {
+    
     textBuffer[0] = 'D'; textBuffer[1] = ' '; textBuffer[2] = (writeProtect[0] + '0'); textBuffer[3] = LF;
     textBuffer[4] = 'E'; textBuffer[5] = ' '; textBuffer[6] = (writeProtect[1] + '0'); textBuffer[7] = LF;
     textBuffer[8] = 'F'; textBuffer[9] = ' '; textBuffer[10] = (writeProtect[2] + '0'); textBuffer[11] = LF;
     textBuffer[12] = 'G'; textBuffer[13] = ' '; textBuffer[14] = (writeProtect[3] + '0'); textBuffer[15] = LF;
     
-//  }
+  }
 }
 
 uint8_t getTxtSize(char command) {

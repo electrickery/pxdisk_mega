@@ -194,3 +194,4 @@ byte setBufPointer = 0;
 bool consoleCommand = false;
 char latestE0Command;
 uint8_t receivedSize;
+#define LF 0x0A
