@@ -54,10 +54,11 @@ EPSPSND         EQU     0030H
 EPSPRCV         EQU     0033H
 ;
 ;
+FMT             EQU     00h
 DID             EQU     31H
 SID             EQU     23H
 FNC             EQU     0E0H
-SIZ             EQU     03H
+;SIZ             EQU     03H
 ;
 ;
 BREAKKEY        EQU     03H     ;BREAK key code
@@ -89,16 +90,23 @@ READ:
         CALL    BREAKCHK        ; Check BREAK key (CTRL/C) press or not
         JP      Z,ABORT
         
-        CALL    CHKARGS         ; Check arguments
+        CALL    CHKARGS         ; Check arguments        
         JP      NZ, USAGE
 ;
         CALL    SENDCMD         ; Send command to PFBDK.
         JP      NZ,DISKERR      ; Disk access error.
+        
+        LD      A,(PKT_STS)     ; Return parameter.
+        OR      A               ;
+        JP      NZ,READERR      ; Read error.
+;
+        CALL    PRDATA          ; Display FDD data.
+        
 ;
         JP      WBOOT
 ;
 ;       ********************************************************
-;               SEND P-COMMAND with drine and wp-flag
+;               SEND P-COMMAND with optional drive and wp-flag
 ;       ********************************************************
 ;
 ;       NOTE :
@@ -122,10 +130,8 @@ SENDCMD:
         INC     HL              ;
         LD      (HL),FNC        ;  Set FNC code.
         INC     HL              ;
-        LD      (HL),SIZ        ;  Set SIZ data.
-        INC     HL              ;
-        LD      A,001h          ;  Set drive code. Not checked by PFBDK
-        LD      (HL),A          ;
+        CALL    GETARGCNT
+        LD      (HL), A
         INC     HL              ;
         LD      A,'P'           ;  Set P command.
         LD      (HL),A          ;
@@ -144,14 +150,25 @@ SENDCMD:
         CALL    CALLX           ; Go !!
 ;
         RET
+        
+GETARGCNT:
+        LD      A, (ARGS)
+        CP      0
+        RET     Z
+        LD      A, 2
+        RET
 
 ;80h arg-size, 81h is space, 82h 1st arg char   04 20 44 20 31
 CHKARGS:
         LD      HL, ARGS
         
-        LD      A, (HL)         ; args length, not used
+        LD      A, (HL)         ; args length
+        LD      (SIZ), A
+        CP      '0'
+        JR      Z, CANOARG
+        
         INC     HL              ; should be a space
-        INC     HL              ; should be dDeEfFgG
+        INC     HL              ; should point to drive letter
         LD      A, (HL)         ; should be drive (D-G)
         AND     0DFh            ; to upper case
         CP      'D'
@@ -166,10 +183,10 @@ CHKARGS:
         
 CADROK:
         LD      (DRIVE), A
-
         INC     HL              ; should be a space
-        INC     HL              ; wp-flag
-        LD      A, (HL)
+
+        INC     HL              ; should point to wp-flag
+        LD      A, (HL)         ; expect '0' or '1'
         CP      '0'
         JP      Z, CAWPOK
         CP      '1'
@@ -178,8 +195,18 @@ CADROK:
         
 CAWPOK:
         LD      (WPFLAG), A
+        LD      A, 03h          ; set size to 3 bytes; P, <drive>, <flag>
+        LD      (SIZ), A
+        CP      A               ; clear Z flag
         RET                     ; Z - args are OK
         
+CANOARG:
+        LD      A, 01h          ; set size to 1 byte; P
+        LD      (SIZ), A
+        CP      A               ; clear Z flag
+        RET
+
+;      
 BANNER:
         LD      HL,BANNERMSG     ;FDD access error message.
         CALL    DSPMSG
@@ -193,7 +220,61 @@ DUMPCHR:
         POP     HL
         POP     AF
         RET
+ 
+PRDATA:
+        LD      A, (PKT_RDT + 2)
+        CP      '0'
+        JR      NZ, PRDRO
+        LD      A, 'W'
+        LD      (PMD), A
+        JR      PRE
         
+PRDRO:
+        LD      A, 'O'
+        LD      (PMD), A
+PRE:        
+        LD      A, (PKT_RDT + 6)
+        CP      '0'
+        JR      NZ, PRERO
+        LD      A, 'W'
+        LD      (PME), A
+        JR      PRF    
+            
+PRERO:
+        LD      A, 'O'
+        LD      (PME), A
+PRF:        
+        LD      A, (PKT_RDT + 10)
+        CP      '0'
+        JR      NZ, PRFRO
+        LD      A, 'W'
+        LD      (PMF), A
+        JR      PRG 
+               
+PRFRO:
+        LD      A, 'O'
+        LD      (PMF), A
+PRG:     
+        LD      A, (PKT_RDT + 14)
+        CP      '0'
+        JR      NZ, PRGRO
+        LD      A, 'W'
+        LD      (PMG), A
+        JR      PREND  
+              
+PRGRO:
+        LD      A, 'O'
+        LD      (PMG), A
+PREND:        
+        LD      HL, PRTMSG
+        CALL    DSPMSG
+        RET
+
+
+
+
+
+
 ;
 ;********************************
 ;*                              *
@@ -213,6 +294,11 @@ USAGE:
         LD      HL, USAGEMSG
         CALL    DSPMSG
         JP      WBOOT
+READERR:
+        LD      HL,RDERRMSG     ;FDD read error message.
+        CALL    DSPMSG
+        JP      WBOOT
+
 
 ;
 ;*************
@@ -234,14 +320,121 @@ DSPMSG:
         RET     Z               ;If find terminator then Return
 ;
         PUSH    HL
+        PUSH    BC
         LD      C,A
         CALL    CONOUT          ;Display data to the console
+        POP     BC
         POP     HL
         INC     HL              ;Update pointer
         JR      DSPMSG          ;Repeat DSPMSG until find terminator
 ;
 ;
-
+;
+;***************
+;*   DSPDATA   *
+;***************
+;
+;       Convert 1 byte data, that addressed by IX, to HET format and
+;       LIST out it to printer. And store character image of data to
+;       CHRPKT.
+;
+;       on entry : B = Data quantity that to be LIST out
+;                  (READPTR) = Indicate data address
+;
+;       on exit  : (READPTR) = Next data address
+;                  Character image of datas are stored behind CHRPKT.
+;
+;       Registers are not preserved.
+;
+DSPDATA:
+        LD      A,B
+        OR      A
+        RET     Z               ;If data quqntity = 0 then return
+;
+        LD      HL,CHRPKT       ;HL=Start address of character data
+        LD      IX,(READPTR+0)    ;IX=MCT data top address
+DSPDT00:
+        PUSH    BC
+        PUSH    HL
+        PUSH    IX
+;
+        LD      A,(IX+0)          ;A=DATA
+        LD      (HL),PERIOD     ;Store PERIOD mark (default data)
+        BIT     7,A             ;If data is 80H through FFH or 00H through
+        JR      NZ,DSPDT10      ;1FH then change to PERIOD mark and store
+        CP      SPCCD           ;it in CHRPKT
+        JR      C,DSPDT10       ;
+        LD      (HL),A          ;Store read data to CHRPKT
+DSPDT10:
+        CALL    TOHEX           ;Convert to HEX
+        PUSH    BC              ;Save lower 4 bit hex data
+        LD      C,B
+        CALL    CONOUT          ;LIST out upper 4bit hex data
+        POP     BC
+        CALL    CONOUT          ;LIST   out lower 4bit hex data
+        LD      C,SPCCD
+        CALL    CONOUT          ;List out space
+;
+        POP     IX
+        POP     HL
+        POP     BC
+        INC     HL
+        INC     IX
+        DJNZ    DSPDT00         ;Repeat until B=0
+;
+        LD      (READPTR),IX    ;Store next data address
+        LD      (HL),TERMINATOR ;Store terminator of character data
+;
+        RET
+;
+;*************
+;*   TOHEX   *
+;*************
+;
+;       Convert input data (A reg) to 2 byte HEX data (BC reg)
+;
+;       on entry :  A = input data
+;
+;       on exit  : BC = HEX data of input data
+;                       (B = upper 4bit data)
+;                       (C = lower 4bit data)
+;
+TOHEX:
+        PUSH    AF
+;
+        RRA                     ;Shift upper4bit to lower 4 bit
+        RRA
+        RRA
+        RRA
+;
+        CALL    TOHEX10         ;Convert upper 4bit
+        LD      B,A
+;
+        POP     AF              ;Convert lower 4bit
+        CALL    TOHEX10
+        LD      C,A
+        RET
+;
+;
+;***************
+;*   TOHEX10   *
+;***************
+;
+;       Convert lower 4bit of input data to HED dat.
+;
+;          entry : A = input data
+;       on exit  : A = HEX data of input data lower 4bit
+;
+TOHEX10:
+        AND     0FH             ;Mask upper 4bit
+        CP      0AH 
+        JR      C,TOHEX20
+;
+        ADD     A,07H           ;If 0AH through 0FH then "A" to "F"
+;
+TOHEX20:
+        ADD     A,30H
+        RET
 ;
 ;****************
 ;*   BREAKCHK   *
@@ -264,6 +457,21 @@ BREAKCHK:
         RET     Z               ;If BREAK key then return
         JR      BREAKCHK        ;Repeat BREAKCHK until buffer is empty
 ;
+CHKWAIT:
+        CALL    CONST
+        INC     A
+        RET     NZ
+;
+        CALL    CONIN
+        CP      BREAKKEY
+        JP      Z,WBOOT
+        CP      SPCCD
+        JR      NZ,CHKWAIT
+;
+        CALL    CONIN
+        CP      BREAKKEY
+        JP      Z,WBOOT
+        RET
 
 ;
 ;
@@ -278,6 +486,12 @@ DRIVE:
         DEFB      'D'
 WPFLAG:
         DEFB      '1'
+READPTR:
+        DEFS      2               ;Pointer of READPKT
+CHRPKT:
+        DEFS      20              ;Character data packet of MCT read data
+SIZ:    
+        DEFB      01h
 ;
 ;************************
 ;*                      *
@@ -285,7 +499,7 @@ WPFLAG:
 ;*                      *
 ;************************
 ;
-CRLF:  
+CRLFMSG:  
         DEFB      CR, LF
         DEFB      TERMINATOR
 ;
@@ -316,6 +530,55 @@ USAGEMSG:
         DEFB      ' wp-state: 0 = read-only, 1 = read/write'
         DEFB      CR, LF
         DEFB      TERMINATOR
+
+RDERRMSG:
+        DEFB      CR,LF
+        DEFB      'PFBDK read error !!'
+        DEFB      CR,LF
+        DEFB      TERMINATOR
+        
+ROMSG:
+        DEFB     'RO'
+        DEFB      TERMINATOR
+        
+RWMSG:
+        DEFB     'RW'
+        DEFB      TERMINATOR
+
+PRTMSG:
+        DEFB    'D: R'
+PMD:
+        DEFB    '-'
+        DEFB    CR, LF
+        DEFB    'E: R'
+PME:
+        DEFB    '-'
+        DEFB    CR, LF
+        DEFB    'F: R'
+PMF:
+        DEFB    '-'
+        DEFB    CR, LF
+        DEFB    'G: R'
+PMG:
+        DEFB    '-'
+        DEFB    CR, LF
+        DEFB      TERMINATOR
+
 ;
 ;
         END
+
+
+;PKT_TOP         EQU     0F931H          ;
+;PKT_FMT         EQU     PKT_TOP
+
+;PKT_TOP + 0  FMT code (0).
+;PKT_TOP + 1  DID code
+;PKT_TOP + 2  SID code
+;PKT_TOP + 3  FNC code
+;PKT_TOP + 4  SIZ data (n)
+;PKT_TOP + 5  data 0 'P'
+;PKT_TOP + 6  data 1 <drive>; DEFG
+;PKT_TOP + 7  data 2 <wpflag<; 01
+;...
+;PKT_TOP + (5+n)  data n

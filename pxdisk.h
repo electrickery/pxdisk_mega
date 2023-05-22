@@ -191,3 +191,6 @@ enum PFBDKFuncs
 
 char serialBuffer[SERIALBUFSIZE];
 byte setBufPointer = 0;
+bool consoleCommand = false;
+char latestE0Command;
+uint8_t receivedSize;

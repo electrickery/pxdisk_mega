@@ -90,6 +90,10 @@ void setup()
   debugLedOff();
   // 
   driveLedsOff();
+
+  for (int i = 0; i < MAX_TEXT; i++) {
+    textBuffer[i] = 0;
+  }
 }
 
 void printVersion() {
@@ -278,6 +282,7 @@ bool isValidFNC(uint8_t f)
     case FN_DISK_WRITE_HST:
     case FN_DISK_COPY:
     case FN_DISK_FORMAT:
+    case FN_IMAGE_CMDS:
       rtn = true;
       break;
     default:
@@ -335,7 +340,7 @@ void sendHeader()
   sendByte(latestFNC);
   cks -= latestFNC;
  
-  uint8_t thisSIZ = latestSIZ;
+  uint8_t thisSIZ;
   switch(latestFNC)
   {
     case FN_DISK_READ_SECTOR:
@@ -352,6 +357,10 @@ void sendHeader()
     
     case FN_DISK_FORMAT:
     thisSIZ = 0x02;
+    break;
+    
+    case FN_IMAGE_CMDS:
+    thisSIZ = getTxtSize(textBuffer[0]);
     break;
     
     default:
@@ -381,6 +390,7 @@ void sendText()
   cks -= C_STX;
   uint8_t i = 0;
   bool returnStatus = true;
+  char managementCommand;
 
 //  if (console) {
 //    DEBUGPORT.print(C_STX);
@@ -455,26 +465,42 @@ void sendText()
       if (console) DEBUGPORT.println(F("FN_DISK_FORMAT not supported"));
       sendByte(C_NAK);
       break;
+//////////////////////////////////////////////////////////////////////////////
     case FN_IMAGE_CMDS:
       if (console) {
-        DEBUGPORT.println(F("FN_IMAGE_CMDS not supported"));
-        DEBUGPORT.print(textBuffer[1], HEX); DEBUGPORT.print(" "); 
-        DEBUGPORT.print(textBuffer[2], HEX); DEBUGPORT.print(" "); 
-        DEBUGPORT.print(textBuffer[3], HEX); DEBUGPORT.println();
+        DEBUGPORT.println(F("FN_IMAGE_CMDS not very supported"));
+        // debug echo 
+        for (uint8_t i = 0; i < latestSIZ; i++) {
+          DEBUGPORT.print(textBuffer[i], HEX); DEBUGPORT.print(" "); 
+        }
+        DEBUGPORT.println();
       }
-      // interim write protect code
-      setBufPointer = 3;
-      serialBuffer[0] = textBuffer[1]; // not used in protect()
-      serialBuffer[1] = textBuffer[2];
-      serialBuffer[2] = textBuffer[3];
-      protect(); // execute P command
-      
-//      loadDirectory(root, 0);
-      sendByte(returnCode);
-      break;
+      managementCommand = latestE0Command;
+      setBufPointer = receivedSize + 1;
+      for (uint8_t i = 0; i < latestSIZ; i++) {
+        serialBuffer[i] = textBuffer[i]; // prep the commandInterpreter
+        if (console) {
+          if (textBuffer[i] > 0x01F && textBuffer[i] < 0x7F) {
+            DEBUGPORT.print(textBuffer[i]);
+          } else {
+            DEBUGPORT.print(textBuffer[i], HEX);
+            DEBUGPORT.print("h ");
+          }
+        }
+      }
+      if (console) DEBUGPORT.println();
+      commandInterpreter(); // execute command
+      for (uint8_t i = 0; i < getTxtSize(managementCommand); i++) {
+        sendByte(textBuffer[i]);
+        cks -= textBuffer[i];
+      }
 
+      sendByte(returnCode);
+      cks -= 0;
+      break;
+//////////////////////////////////////////////////////////////////////////////
     default:
-    break;
+      break;
   }
   sendByte(C_ETX);
 
@@ -486,6 +512,8 @@ void sendText()
   cks -= C_ETX;
   sendByte(cks);
 }
+
+
 
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// State Machine ////////////////////////////////
@@ -657,6 +685,7 @@ void stateMachine(uint8_t b)
 //////////////////////////////////////////////////////////////////////////////
     case ST_HD_FNC:
       latestSIZ = b;
+      receivedSize = b;
       latestCKS += b;
       state = ST_HD_SIZ;
       break;
@@ -695,6 +724,8 @@ void stateMachine(uint8_t b)
 
     case ST_TX_STX:
       textBuffer[textCount] = b;
+      if (textCount ==0) latestE0Command = b;
+
       latestCKS += b;
       if(textCount == latestSIZ)
       {
@@ -800,7 +831,7 @@ void stateMachine(uint8_t b)
 void loop() 
 {
   int av;
-   while(true)  // TODO  PXPORT.available() > 0)
+  while(true)  // TODO  PXPORT.available() > 0)
   {
     if((av = PXPORT.available()) > 32)
     {
@@ -815,7 +846,9 @@ void loop()
         stateMachine(b);
     }
     if (DEBUGPORT.available() > 0) { // Wait for something to come in from console
+        consoleCommand = true;
         commandCollector();
+        consoleCommand = false;
     }
     if (ledTime < millis()) {
       driveLedsOff();
@@ -1137,14 +1170,7 @@ bool createFile(String filename) {
 void protect() {
    if (setBufPointer == 1) { // list current protect status
      if (console) {
-       DEBUGPORT.print("D: ");
-       DEBUGPORT.println((writeProtect[0]) ? "RO" : "RW");
-       DEBUGPORT.print("E: ");
-       DEBUGPORT.println((writeProtect[1]) ? "RO" : "RW");
-       DEBUGPORT.print("F: ");
-       DEBUGPORT.println((writeProtect[2]) ? "RO" : "RW");
-       DEBUGPORT.print("G: ");
-       DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW");
+       reportP();
      }
    } else if (setBufPointer == 3) {
      char drive = toupper(serialBuffer[1]);
@@ -1153,9 +1179,7 @@ void protect() {
      if (drive >= 'D' or drive <= 'G') {
        writeProtect[driveIndex] = wpStatus;
        if (console) {
-         DEBUGPORT.print(drive);
-         DEBUGPORT.print(": ");
-         DEBUGPORT.println((writeProtect[driveIndex]) ? "RO" : "RW");
+         reportP();
        }
      } else {
       if (console) {
@@ -1164,8 +1188,50 @@ void protect() {
       }
      }
    } else {
-     if (console) DEBUGPORT.println("unsupported");
+     if (console) {
+      DEBUGPORT.print(setBufPointer, DEC);
+      DEBUGPORT.println(" Punsupported");
+     }
    }
+}
+
+void reportP() {
+//  if (consoleCommand) {
+    DEBUGPORT.print("D: ");
+    DEBUGPORT.println((writeProtect[0]) ? "RO" : "RW");
+    DEBUGPORT.print("E: ");
+    DEBUGPORT.println((writeProtect[1]) ? "RO" : "RW");
+    DEBUGPORT.print("F: ");
+    DEBUGPORT.println((writeProtect[2]) ? "RO" : "RW");
+    DEBUGPORT.print("G: ");
+    DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW"); 
+//  } else {
+    #define LF 0x0A
+    textBuffer[0] = 'D'; textBuffer[1] = ' '; textBuffer[2] = (writeProtect[0] + '0'); textBuffer[3] = LF;
+    textBuffer[4] = 'E'; textBuffer[5] = ' '; textBuffer[6] = (writeProtect[1] + '0'); textBuffer[7] = LF;
+    textBuffer[8] = 'F'; textBuffer[9] = ' '; textBuffer[10] = (writeProtect[2] + '0'); textBuffer[11] = LF;
+    textBuffer[12] = 'G'; textBuffer[13] = ' '; textBuffer[14] = (writeProtect[3] + '0'); textBuffer[15] = LF;
+    
+//  }
+}
+
+uint8_t getTxtSize(char command) {
+  switch(command) {
+    case 'D':
+      return 128;
+      break;
+    case 'M':
+      return 64;
+      break;
+    case 'N':
+      return 0;
+      break;
+    case 'P':
+      return 16;
+      break;
+    default:
+      return 0;
+  }
 }
 
 bool checkFilePresence(String filename) {
