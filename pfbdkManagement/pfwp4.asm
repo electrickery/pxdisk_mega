@@ -368,7 +368,7 @@ ABORTMSG:
         
 USAGEMSG:
         DEFB      CR, LF
-        DEFB      'Usage: PFWP <drive> <wp-state>'
+        DEFB      'Usage: PFWP [<drive> <wp-state>]'
         DEFB      CR, LF
         DEFB      ' drive = D, E, F, G.' 
         DEFB      CR, LF
@@ -413,16 +413,17 @@ PMG:
 ;
         END
 
-;Source: PX-4 OSRM II-408
-;PKT_TOP         EQU     0F931H          ;
 
-;PKT_TOP + 0  FMT code (0).   \ Header part
-;PKT_TOP + 1  DID code        /
-;PKT_TOP + 2  SID code       /
-;PKT_TOP + 3  FNC code      /
-;PKT_TOP + 4  SIZ data (n) /    (SIZ is TEXT part size minus 1 !)
-;PKT_TOP + 5  data 0 'P'            \ Text part
-;PKT_TOP + 6  data 1 <drive>; DEFG  /
-;PKT_TOP + 7  data 2 <wpflag>; 01  /
-;...                              /
-;PKT_TOP + (5+n)  data n         /
+;PKT_TOP         EQU     0F931H          ;
+;PKT_FMT         EQU     PKT_TOP
+
+;PKT_TOP + 0  FMT code (0).
+;PKT_TOP + 1  DID code
+;PKT_TOP + 2  SID code
+;PKT_TOP + 3  FNC code
+;PKT_TOP + 4  SIZ data (n)
+;PKT_TOP + 5  data 0 'P'
+;PKT_TOP + 6  data 1 <drive>; DEFG
+;PKT_TOP + 7  data 2 <wpflag<; 01
+;...
+;PKT_TOP + (5+n)  data n
