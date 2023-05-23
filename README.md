@@ -47,9 +47,9 @@ the SDLib library for VFAT disks.
 The idea is make most settings controllable from the PX-4/PX-8 with 
 custom commands and make settings persistent. So far only a demo for this is
 realized; the write protect flag for each drive can be controlled from CP/M
-with the pfbdkManagement/pfwp.asm program.
+with the pfbdkManagement/pfwp4.asm program (for the PX-4).
 
-      Usage: PFWP <drive> <wp-state>
+      Usage: PFWP4 <drive> <wp-state>
        drive = D, E, F, G. 
        wp-state: 0 = read-only, 1 = read/write
 
@@ -57,4 +57,4 @@ with the pfbdkManagement/pfwp.asm program.
 There are 3D-print files for both cases and more pictures on my own page 
 at: https://electrickery.nl/comp/tf20/pxdisk/
 
-fjkraan@electrickery.nl, 2023-05-20
+fjkraan@electrickery.nl, 2023-05-23
