@@ -1012,7 +1012,7 @@ void clearSerialBuffer() {
 
 // M command - M[dnnnnnnnn.eee]
 void mountImage() {
-  bool mountResult;
+  bool mountResult = true;
   char drive;
   if (setBufPointer == 1) { // list current mounted images
     mountReport();
@@ -1027,7 +1027,7 @@ void mountImage() {
     if (bufSize > DRIVENAMESIZE+1) bufSize = DRIVENAMESIZE+1; 
     drive = toupper(serialBuffer[1]);
     if (drive >= 'D' or drive <= 'G') {
-      mountResult =  remount(bufSize, drive);
+      mountResult = remount(bufSize, drive);
       mountReport();
     } else {
       if (console) {
