@@ -467,26 +467,28 @@ void sendText()
       break;
 //////////////////////////////////////////////////////////////////////////////
     case FN_IMAGE_CMDS:
+      managementCommand = latestE0Command;
+      setBufPointer = receivedSize + 1;
       if (console) {
         DEBUGPORT.println(F("FN_IMAGE_CMDS not very supported"));
         // debug echo 
-//        for (uint8_t i = 0; i < latestSIZ; i++) {
-//          DEBUGPORT.print(textBuffer[i], HEX); DEBUGPORT.print(" "); 
-//        }
-//        DEBUGPORT.println();
+        DEBUGPORT.print("textB: ");
+        for (uint8_t i = 0; i < setBufPointer; i++) {
+          DEBUGPORT.print(textBuffer[i], HEX); DEBUGPORT.print(" "); 
+        }
+        DEBUGPORT.println();
       }
-      managementCommand = latestE0Command;
-      setBufPointer = receivedSize + 1;
-      for (uint8_t i = 0; i < latestSIZ; i++) {
+      if (console)  DEBUGPORT.print("serB: ");
+      for (uint8_t i = 0; i < setBufPointer; i++) {
         serialBuffer[i] = textBuffer[i]; // prep the commandInterpreter
-//        if (console) {
-//          if (textBuffer[i] > 0x01F && textBuffer[i] < 0x7F) {
-//            DEBUGPORT.print(textBuffer[i]);
-//          } else {
-//            DEBUGPORT.print(textBuffer[i], HEX);
-//            DEBUGPORT.print("h ");
-//          }
-//        }
+        if (console) {
+          if (textBuffer[i] > 0x01F && textBuffer[i] < 0x7F) {
+            DEBUGPORT.write(textBuffer[i]); DEBUGPORT.print(" ");
+          } else {
+            DEBUGPORT.print(textBuffer[i], HEX);
+            DEBUGPORT.print("h ");
+          }
+        }
       }
       if (console) DEBUGPORT.println();
       commandInterpreter(); // execute command
@@ -1008,48 +1010,41 @@ void clearSerialBuffer() {
   }
 }
 
-// M command
+// M command - M[dnnnnnnnn.eee]
 void mountImage() {
   bool mountResult;
   char drive;
   if (setBufPointer == 1) { // list current mounted images
-    if (console) {
-      DEBUGPORT.println(F("Mounted files:"));
-      DEBUGPORT.print(" D - ");
-      DEBUGPORT.print(diskNames[0]);
-      DEBUGPORT.print("  ");
-      DEBUGPORT.println((writeProtect[0]) ? "RO" : "RW");
-      DEBUGPORT.print(" E - ");
-      DEBUGPORT.print(diskNames[1]);
-      DEBUGPORT.print("  ");
-      DEBUGPORT.println((writeProtect[1]) ? "RO" : "RW");
-      DEBUGPORT.print(" F - ");
-      DEBUGPORT.print(diskNames[2]);
-      DEBUGPORT.print("  ");
-      DEBUGPORT.println((writeProtect[2]) ? "RO" : "RW");
-      DEBUGPORT.print(" G - ");
-      DEBUGPORT.print(diskNames[3]);
-      DEBUGPORT.print("  ");
-      DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW");
-    }
-  } else { // mount a new image to a drive
+    mountReport();
+  } else if (setBufPointer == 2) {
+      if (console) {
+        DEBUGPORT.println(F("No filename specified"));
+        mountResult = false;
+      }
+  } else if (setBufPointer >= 7) { // mount a new image to a drive (Mdn.eee)
     uint8_t bufSize = setBufPointer;
     // Mdnnnnnnnn.eee > maximal command length = 14
     if (bufSize > DRIVENAMESIZE+1) bufSize = DRIVENAMESIZE+1; 
     drive = toupper(serialBuffer[1]);
     if (drive >= 'D' or drive <= 'G') {
       mountResult =  remount(bufSize, drive);
+      mountReport();
     } else {
       if (console) {
         DEBUGPORT.print(F("Illegal drive: "));
         DEBUGPORT.println(drive);
+        mountResult = false;
       }
     }
+  } else {
+    if (console) DEBUGPORT.println(F("Image name too short"));
+    mountResult = false;
   }
   if (!mountResult) {
     if (console) {
-      DEBUGPORT.print(F("Mounting failed for "));
+      DEBUGPORT.print(F("Mounting failed for '"));
       DEBUGPORT.println(drive); 
+      DEBUGPORT.println(F("'")); 
     }
   }
 }
@@ -1071,6 +1066,45 @@ bool mountCheck(String filename) {
     DEBUGPORT.println("' failed");
   }
   return false;
+}
+
+void mountReport() {
+  if (consoleCommand) {
+      DEBUGPORT.println(F("Mounted files:"));
+      DEBUGPORT.print(" D - ");
+      DEBUGPORT.print(diskNames[0]);
+      DEBUGPORT.print("  ");
+      DEBUGPORT.println((writeProtect[0]) ? "RO" : "RW");
+      DEBUGPORT.print(" E - ");
+      DEBUGPORT.print(diskNames[1]);
+      DEBUGPORT.print("  ");
+      DEBUGPORT.println((writeProtect[1]) ? "RO" : "RW");
+      DEBUGPORT.print(" F - ");
+      DEBUGPORT.print(diskNames[2]);
+      DEBUGPORT.print("  ");
+      DEBUGPORT.println((writeProtect[2]) ? "RO" : "RW");
+      DEBUGPORT.print(" G - ");
+      DEBUGPORT.print(diskNames[3]);
+      DEBUGPORT.print("  ");
+      DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW");
+  } else {
+    textBuffer[0x00] = 'D'; textBuffer[0x0D] = 'R'; textBuffer[0x0E] = (writeProtect[0] ? 'O' : 'W'); textBuffer[0x0F] = LF;
+    textBuffer[0x10] = 'E'; textBuffer[0x1D] = 'R'; textBuffer[0x1E] = (writeProtect[1] ? 'O' : 'W'); textBuffer[0x1F] = LF;
+    textBuffer[0x20] = 'F'; textBuffer[0x2D] = 'R'; textBuffer[0x2E] = (writeProtect[2] ? 'O' : 'W'); textBuffer[0x2F] = LF;
+    textBuffer[0x30] = 'G'; textBuffer[0x3D] = 'R'; textBuffer[0x3E] = (writeProtect[3] ? 'O' : 'W'); textBuffer[0x3F] = LF;
+    for (uint8_t i = 0; i < 0x0C; i++) {
+      textBuffer[0x01+i] = diskNames[0][0+i];
+      textBuffer[0x11+i] = diskNames[1][0+i];
+      textBuffer[0x21+i] = diskNames[2][0+i];
+      textBuffer[0x31+i] = diskNames[3][0+i];
+    }
+  }
+}
+
+void charCpy(char* dest, char *source, uint8_t len) {
+  for (uint8_t i = 0; i < len; i++) {
+    dest[i] = source[i];
+  }
 }
 
 bool remount(uint8_t bufSize, char drive) {
@@ -1205,12 +1239,13 @@ void reportP() {
     DEBUGPORT.print("G: ");
     DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW"); 
   } else {
-    
     textBuffer[0] = 'D'; textBuffer[1] = ' '; textBuffer[2] = (writeProtect[0] + '0'); textBuffer[3] = LF;
     textBuffer[4] = 'E'; textBuffer[5] = ' '; textBuffer[6] = (writeProtect[1] + '0'); textBuffer[7] = LF;
     textBuffer[8] = 'F'; textBuffer[9] = ' '; textBuffer[10] = (writeProtect[2] + '0'); textBuffer[11] = LF;
     textBuffer[12] = 'G'; textBuffer[13] = ' '; textBuffer[14] = (writeProtect[3] + '0'); textBuffer[15] = LF;
-    
+//    for (int i = 0; i < 0x40; i++) {
+//      if (textBuffer[i] == 0x00) textBuffer[i] = 0x20;
+//    }
   }
 }
 
