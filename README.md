@@ -10,9 +10,20 @@ use. The route will be very incremental to keep the basic functionality working.
 
 ![PFBDK on an Arduino Pro Micro in a PLA box](pfbdkPMicroV1.0_front.jpg)
 
+For the Pro Micro a working PCB is created [PDF](PFBDK_promicro.kicad_sch.pdf), [KiCAD files](PFBDK_promicro_V1.0.complete.zip).
+
+There are 3D-print files for both cases and more pictures on my own page 
+at: https://electrickery.nl/comp/tf20/pxdisk/
+
+## Hardware extensions
+
+Both Arduino solutions support blinking lights for the SERIAL line and each (emulated) drive. 
+
+## PFBDK console commands
+
 The first feature is a command line on the debug/console port of the 
 Arduino Mega and Pro Micro. The Mega is somewhat more expensive and larger,
-but easier to program. For the Pro Micro a PCB is avaliable. For normal 
+but easier to program. For normal 
 operation the two are equal. The usage is now:
 
 	Usage (1.5.0):
@@ -25,36 +36,70 @@ operation the two are equal. The usage is now:
  	R                - temp reset Arduino
 
 Note that most changes made are not persistent and will be lost when switching 
-off or resetting the floppy emulator. The default settings are images D.IMG, 
-E.IMG, F.IMG and G.IMG for the drives and all drives are writable.
+off or resetting the floppy emulator. The default settings are images **D.IMG**, 
+**E.IMG**, **F.IMG** and **G.IMG** for the drives and all drives are writable.
+
+### D
 
 The D commands lists only the root directory of the SD card.
+
+
+### M
 
 The goal of the M-command is to change the images assigned to the 
 simulated disk drives D: to G:. 
 
+
+### N
+
 The N-command creates a new empty image file. It aborts when the image exists. 
 This command and the data stored on the image are saved on the SD-card.
 
+
+### P
+
 The P command emulates the floppy write tabs to write protect the disk.
 
-Another added feature are the blinking lights.
+
 
 Another plan was to respect the Read-Only attribute for the image files, 
 emulating the floppy write protect, but this attribute is not supported in 
 the SDLib library for VFAT disks.
 
+## Control with native PX4 programs
+
 The idea is make most settings controllable from the PX-4/PX-8 with 
-custom commands and make settings persistent. So far only a demo for this is
-realized; the write protect flag for each drive can be controlled from PX-4 CP/M
-with the pfbdkManagement/pfwp4.asm program. It is actually a frontend for the P 
-command described above.
+custom commands and make settings persistent. After all the PX-4/8 talks to the PFBDK
+using the [well documented EPSP protocol](https://electrickery.nl/comp/tf20/pxdisk/pxDiskMega3DprintFiles.zip), and extending the PFBDK firmware with new commands is entirely 
+possible. For the PX-4 side some user programs can be added, similar in usage as the 
+original COPYDISK program. So far only some demos for the
+PX-4 are realized. The PX-8 uses another BIOS call, and will be implemented later.
+
+### PFMNT4
+
+	  Usage: PFMNT4 [<drive> <name>]
+       drive = D, E, F, G.
+       name = SD card file image name.
+      
+This is a front end for the M command described above.
+
+### PFWP4
 
       Usage: PFWP4 [<drive> <wp-state>]
        drive = D, E, F, G. 
        wp-state: 0 = read-only, 1 = read/write
+       
+This is a front end for the P command described above.
 
-There are 3D-print files for both cases and more pictures on my own page 
-at: https://electrickery.nl/comp/tf20/pxdisk/
+## Case
 
-fjkraan@electrickery.nl, 2023-05-23
+
+## Extra tech
+
+Creating applications consisting of two computers talking to each other is 
+more complex than making just a program. I used this solution to inspect the
+traffic between the PX-4 and the PFBDK: https://github.com/electrickery/DualSerialMonitor
+
+
+
+fjkraan@electrickery.nl, 2023-05-26

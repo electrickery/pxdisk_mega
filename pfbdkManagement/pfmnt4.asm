@@ -89,9 +89,9 @@ MAIN:
 ;
 READ:
         CALL    BANNER
-        CALL    ARGDUMP
+;        CALL    ARGDUMP
         CALL    CHKARGS         ; Check arguments        
-;        JP      NZ, USAGE
+        JP      NZ, USAGE
 ;
         CALL    SENDCMD         ; Send command to PFBDK.
         JP      NZ,DISKERR      ; Disk access error.
@@ -129,11 +129,27 @@ SENDCMD:
         INC     HL              ;
         LD      (HL), FNC       ;  Set FNC code.
         INC     HL              ;
-        CALL    GETARGCNT       ; Expect 0 or 2
+        LD      A, (SIZ)        ; 0 or image size + 1
         LD      (HL), A
         INC     HL              ;
         LD      A,'M'           ;  Set M command.
         LD      (HL),A          ;
+        INC     HL              ;
+        LD      A, (DRIVE)      ;
+        LD      (HL), A
+        INC     HL
+        LD      DE, IMGNAME     ; Point to image name
+SALP1:
+        LD      A, (DE)
+        CP      0
+        JR      Z, SACPDN
+        LD      (HL), A
+        INC     HL
+        INC     DE
+        JR      SALP1
+
+        
+SACPDN:        
 ;
         LD      A,SYSBANK       ; Select OS bank.
         LD      (DISBNK),A      ;
@@ -154,11 +170,16 @@ GETARGCNT:
 ;80h arg-size, 81h is space, 82h 1st arg char   04 20 44 20 31
 CHKARGS:
         LD      HL, ARGS
+        LD      DE, IMGNAME
         
         LD      A, (HL)         ; args length
-        LD      (SIZ), A
+        LD      (ARGSIZ), A
         CP      0
         JR      Z, CANOARG
+        CP      6               ; minimum arg string size: ' d n.e'
+        JR      C, CASHORT
+        CP      15              ; maximum arg string size: ' d nnnnnnnn.e'
+        JR      NC, CALONG
         
         INC     HL              ; should be a space
         INC     HL              ; should point to drive letter
@@ -178,25 +199,30 @@ CADROK:
         LD      (DRIVE), A
         INC     HL              ; should be a space
 
-        INC     HL              ; should point to wp-flag
-        LD      A, (HL)         ; expect '0' or '1'
-        CP      '0'
-        JP      Z, CAWPOK
-        CP      '1'
-        JP      Z, CAWPOK
-        RET                     ; NZ, not 0 or 1
-        
-CAWPOK:
-        LD      (WPFLAG), A
-        LD      A, 03h          ; set size to 3 bytes; P, <drive>, <flag>
+CALP1:
+        INC     HL              ; should point to image name in ARGS
+        LD      A, (HL)
+        LD      (DE), A
+        INC     DE
+        OR      A
+        CP      0
+        JR      NZ, CALP1
+        LD      A, (ARGSIZ)
+        DEC     A
         LD      (SIZ), A
-        CP      A               ; clear Z flag
-        RET                     ; Z - args are OK
+        XOR     A               ; set Z flag
+        RET
+        
         
 CANOARG:
-        LD      A, 01h          ; set size to 1 byte; P
-        LD      (SIZ), A
-        CP      A               ; clear Z flag
+        LD      A, 0h           ; set size to 1 byte; M
+        LD      (ARGSIZ), A
+        XOR     A               ; set Z flag
+        RET
+        
+CASHORT:
+CALONG:
+        OR      1               ; clear Z flag -> NZ
         RET
 
 ;      
@@ -467,8 +493,11 @@ DSPBOARD:
 
 DRIVE:
         DEFB      'D'
-WPFLAG:
-        DEFB      '1'
+IMGNAME:
+        DEFB      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        
+ARGSIZ:    
+        DEFB      00h
 SIZ:    
         DEFB      00h
 ROMIDCPY:
@@ -511,11 +540,11 @@ ABORTMSG:
         
 USAGEMSG:
         DEFB      CR, LF
-        DEFB      'Usage: PFMNT4 <drive> <name>'
+        DEFB      'Usage: PFMNT4 [<drive> <name>]'
         DEFB      CR, LF
         DEFB      ' drive = D, E, F, G.' 
         DEFB      CR, LF
-        DEFB      ' wp-state: 0 = read-only, 1 = read/write'
+        DEFB      ' name = SD card file image name.'
         DEFB      CR, LF
         DEFB      TERMINATOR
 
