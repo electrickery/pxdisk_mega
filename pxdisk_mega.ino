@@ -11,7 +11,7 @@
 
 #define MAJOR_VERSION 1
 #define MINOR_VERSION 5
-#define PATCH         3
+#define PATCH         4
 
 #include <SPI.h>
 #include <SD.h>
@@ -82,7 +82,7 @@ void setup()
   if (console) {
     DEBUGPORT.println();
     DEBUGPORT.println(F("Root directory:"));
-    printDirectory(root, 1, false);
+    printDirectory();
   }
   root.close();
 
@@ -857,70 +857,6 @@ void loop()
   }
 }
 
-void printDirectory(File root, int numTabs, bool recursive) {
-  while (console) {
-
-    File entry =  root.openNextFile();
-    if (! entry) {
-      // no more files
-      break;
-    }
-    for (uint8_t i = 0; i < numTabs; i++) {
-      DEBUGPORT.print(" ");
-    }
-    String name = entry.name();
-    DEBUGPORT.print(name);
-    if (entry.isDirectory()) {
-      DEBUGPORT.println("/");
-      if (recursive) printDirectory(entry, numTabs + 1, true);
-    } else {
-      // files have sizes, directories do not
-      DEBUGPORT.print("\t");
-      if (name.length() < 7) DEBUGPORT.print("\t");
-      DEBUGPORT.println(entry.size(), DEC);
-    }
-    entry.close();
-  } 
-}
-
-void loadDirectory(File root, uint8_t dirOffset) {
-  uint8_t entryCount = 0;
-#define ENTRIESPERMESSAGE 4
-#define EntrySize 0x20
-#define EntryItemSize     0x10
-  int entryNameOffset = 0;
-  int entrySizeOffset = 0x10;
-  
-  while (console) {
-    // skip previously send entries
-//    for (uint8_t dirIndex = 0; dirIndex < (dirOffset * ENTRIESPERMESSAGE); dirIndex++) {
-//      File tmpEntry = root.openNextFile();
-//      DEBUGPORT.print(dirIndex);
-//      DEBUGPORT.print("  ");
-//      DEBUGPORT.println(tmpEntry.name());
-//    }
-    File entry =  root.openNextFile();
-    if (! entry) {
-      // no more files
-      break;
-    }
-    if (entryCount >= ENTRIESPERMESSAGE) {
-      break;
-    }
-
-    String name = entry.name();
-    String size = String(entry.size());
-    DEBUGPORT.print(name);
-    name.toCharArray(textBuffer[entryNameOffset], EntryItemSize);
-    DEBUGPORT.println(size);
-    size.toCharArray(textBuffer[entrySizeOffset], EntryItemSize);
-    entry.close();
-    entryCount++;
-    entryNameOffset += EntrySize;
-    entrySizeOffset += EntrySize;
-    }
-}
-
 void commandCollector() {
   if (console && DEBUGPORT.available() > 0) {
     int inByte = DEBUGPORT.read();
@@ -959,10 +895,7 @@ void commandInterpreter() {
       break;
     case 'D':
     case 'd':
-      root = SD.open("/");
-      DEBUGPORT.println(F("Root directory:"));
-      printDirectory(root, 1, false);
-      root.close();
+      loadDirectory();
       break;
     case 'H':
     case 'h':
@@ -973,7 +906,7 @@ void commandInterpreter() {
       DEBUGPORT.println(F("):"));
 
       DEBUGPORT.println(F(" C                - temp debug for driveNames[][]"));
-      DEBUGPORT.println(F(" D                - SD-card root directory"));
+      DEBUGPORT.println(F(" D[p]             - SD-card root directory (p is the optional set of 16 entries)"));
       DEBUGPORT.println(F(" H                - this help"));
       DEBUGPORT.println(F(" M[dnnnnnnnn.eee] - mount file nnnnnnnn.eee on drive d"));
       DEBUGPORT.println(F(" Nnnnnnnnn.eee    - create an image file nnnnnnnn.eee"));
@@ -1000,6 +933,119 @@ void commandInterpreter() {
       DEBUGPORT.print(bufByte);
       DEBUGPORT.println(F(" unsupported"));
       return;
+  }
+}
+
+void printDirectory() {
+  root = SD.open("/");
+  DEBUGPORT.println(F("Root directory:"));
+
+  while (console) {
+
+    File entry =  root.openNextFile();
+    if (! entry) {
+      // no more files
+      break;
+    }
+    DEBUGPORT.print(" ");
+    String name = entry.name();
+    DEBUGPORT.print(name);
+    if (entry.isDirectory()) {
+      DEBUGPORT.println("/");
+//      printDirectory();
+    } else {
+      // files have sizes, directories do not
+      DEBUGPORT.print("\t");
+      if (name.length() < 7) DEBUGPORT.print("\t");
+      DEBUGPORT.println(entry.size(), DEC);
+    }
+    entry.close();
+  } 
+  root.close();
+}
+
+void loadDirectory() {  // L[d]
+  if (consoleCommand) {
+    printDirectory();
+  } else {
+    uint8_t dirOffset = 0;
+    if (setBufPointer == 2) dirOffset = serialBuffer[1] - '0';
+    if (dirOffset > 9) dirOffset = 0;
+    
+    root = SD.open("/");
+    if (console) {
+      DEBUGPORT.print(F("Root directory ("));
+      DEBUGPORT.print(dirOffset);
+      DEBUGPORT.println("):");
+    }
+    uint8_t entryCount = 0;
+    int entryNameOffset;
+    int entrySizeOffset;
+  
+      // skip previously send entries
+    for (uint8_t dirIndex = 0; dirIndex < (dirOffset * ENTRIESPERMESSAGE); dirIndex++) {
+      File tmpEntry = root.openNextFile();
+      if (console) DEBUGPORT.print(".");
+      tmpEntry.close();
+    }
+    DEBUGPORT.println();
+    fillTextBuffer(' ');
+  
+    while (console) {
+      File entry =  root.openNextFile();
+      if (!entry) {
+        // no more files
+        if (console) DEBUGPORT.print(F(" -- no more entries-- "));
+        break;
+      }
+      if (entryCount >= ENTRIESPERMESSAGE) {
+        break;
+      }
+  
+      entryNameOffset = ENTRYSIZE * entryCount;
+      entrySizeOffset = ENTRYSIZE * entryCount + ENTRYNAMESIZE;
+      String name = entry.name();
+      if (entry.isDirectory()) name += '/';  // don't use full 8.3 for directories :-)
+      uint32_t size = entry.size();
+      if (console) {
+        DEBUGPORT.print(" ");
+        DEBUGPORT.print(name);
+      }
+      for (int c = 0; c < ENTRYNAMESIZE; c++) {
+        if (name.charAt(c) == 0) break;
+        textBuffer[entryNameOffset + c] = name.charAt(c);
+      }
+      
+      if (console) DEBUGPORT.print(" ");
+  
+      uint8_t sizeByte = long2byte(size, 2);
+      textBuffer[entrySizeOffset++] = sizeByte;
+  if (console) {
+    if (sizeByte < 0x10) DEBUGPORT.print("0");
+    DEBUGPORT.print(sizeByte, HEX);
+  }
+    
+      sizeByte = long2byte(size, 1);
+      textBuffer[entrySizeOffset++] = sizeByte;
+  if (console) {
+    if (sizeByte < 0x10) DEBUGPORT.print("0");
+    DEBUGPORT.print(sizeByte, HEX);
+  }
+    
+      sizeByte = long2byte(size, 0);
+      textBuffer[entrySizeOffset++] = sizeByte;
+  if (console) {
+    if (sizeByte < 0x10) DEBUGPORT.print("0");
+    DEBUGPORT.print(sizeByte, HEX);
+  }
+  
+    textBuffer[entrySizeOffset] = LF;
+    if (console) DEBUGPORT.println();
+      entry.close();
+      entryCount++;
+    }
+    root.close();
+    if (console) dumpTextBuffer();
   }
 }
 
@@ -1252,16 +1298,16 @@ void reportP() {
 uint8_t getTxtSize(char command) {
   switch(command) {
     case 'D':
-      return 128;
+      return DTEXTSIZE;
       break;
     case 'M':
-      return 64;
+      return MTEXTSIZE;
       break;
     case 'N':
-      return 0;
+      return NTEXTSIZE;
       break;
     case 'P':
-      return 16;
+      return PTEXTSIZE;
       break;
     default:
       return 0;
@@ -1313,4 +1359,37 @@ void debugLedOn() {
 
 void debugLedOff() {
   digitalWrite(DEBUGLED, LOW);
+}
+
+uint8_t long2byte(uint32_t value, uint8_t byte) {
+    // byte 0 is LSB, byte 3 is MSB
+//    uint8_t bitShift = bitShift;
+//    uint32_t mask = (0xFF << bitShift);
+//    return ((value & mask) >> bitShift);
+  uint8_t mmsb = value / 0x1000000;
+  uint8_t mlsb = value / 0x10000 - mmsb * 0x100;
+  uint8_t lmsb = value / 0x100 - mlsb * 0x100 - mmsb * 0x10000;
+  uint8_t llsb = value - lmsb * 0x100 - mlsb * 0x10000 - mmsb * 0x1000000;
+  if (byte == 0) return llsb;
+  if (byte == 1) return lmsb;
+  if (byte == 2) return mlsb;
+  if (byte == 3) return mmsb;
+  return 0;
+}
+
+void dumpTextBuffer() {
+  uint8_t d;
+  for (int i = 0; i < MAX_TEXT; i++) {
+    if ((i % 16) == 0) {
+      DEBUGPORT.println();
+      if (i < 0x10) DEBUGPORT.print("0");
+      DEBUGPORT.print(i, HEX);
+      DEBUGPORT.print(": ");
+    }
+    d = textBuffer[i];
+    if (d < 0x10) DEBUGPORT.print("0");
+    DEBUGPORT.print(d, HEX);
+    DEBUGPORT.print(" ");
+  }
+  DEBUGPORT.println();
 }

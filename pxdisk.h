@@ -181,8 +181,14 @@ enum PFBDKFuncs
   PFC_MOUNT  = 'M',
   PFC_NEWIMG = 'N',
   PFC_PROT   = 'P',
-  PFC_RST    = 'N',
+  PFC_RST    = 'R',
 };
+
+#define DTEXTSIZE 128
+#define MTEXTSIZE  64
+#define NTEXTSIZE   0
+#define PTEXTSIZE  16
+#define RTEXTSIZE   0
 
 //////////////////////////////////////////////////////////////////////////////
 /// for console/debug command interpreter
@@ -195,3 +201,8 @@ bool consoleCommand = false;
 char latestE0Command;
 uint8_t receivedSize;
 #define LF 0x0A
+
+// directory text block
+#define ENTRIESPERMESSAGE 8
+#define ENTRYSIZE         16
+#define ENTRYNAMESIZE     12

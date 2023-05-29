@@ -23,8 +23,7 @@ Both Arduino solutions support blinking lights for the SERIAL line and each (emu
 
 The first feature is a command line on the debug/console port of the 
 Arduino Mega and Pro Micro. The Mega is somewhat more expensive and larger,
-but easier to program. For normal 
-operation the two are equal. The usage is now:
+but easier to program. For normal operation the two are equal. The usage is now:
 
 	Usage (1.5.0):
  	C                - temp debug for driveNames[][]
