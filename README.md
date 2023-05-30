@@ -74,21 +74,24 @@ possible. For the PX-4 side some user programs can be added, similar in usage as
 original COPYDISK program. So far only some demos for the
 PX-4 are realized. The PX-8 uses another BIOS call, and will be implemented later.
 
-### PFMNT4
+### PFDIR4 - display SD-card root directory
+
+        Usage: PFDIR4 [n]
+         n = optional directory section 
+          (each section is eight entries)
+
+### PFMNT4 - mount a SD-card image file to a drive
 
 	  Usage: PFMNT4 [<drive> <name>]
        drive = D, E, F, G.
        name = SD card file image name.
       
-This is a front end for the M command described above.
-
-### PFWP4
+### PFWP4 - manage write protect flag of a drive
 
       Usage: PFWP4 [<drive> <wp-state>]
        drive = D, E, F, G. 
        wp-state: 0 = read-only, 1 = read/write
        
-This is a front end for the P command described above.
 
 ## Case
 

@@ -87,6 +87,8 @@ READ:
         CALL    BANNER
 
         CALL    GETARGSZ
+        JP      NZ, USAGE
+        
         CALL    DSPNO
 ;
         CALL    SENDCMD         ; Send command to PFBDK.
@@ -145,9 +147,24 @@ SENDCMD:
         
 GETARGSZ:
         LD      A, (ARGS)
-;        CP      0
-;        RET     Z
-;        LD      A, 2
+        CP      0
+        JR      Z, GA0ARG
+        CP      2
+        JR      Z, GA1ARG
+        RET                     ; NZ : inproper args
+        
+GA0ARG:
+        XOR     A
+        LD      (DIRPART), A
+        RET
+        
+GA1ARG:
+        LD      HL, ARGS
+        INC     HL              ; space
+        INC     HL              ; arg char
+        LD      A, (HL)
+        LD      (DIRPART), A
+        
         RET
 
 DSPNO:
@@ -398,9 +415,9 @@ SIZ:
         DEFB      00h
         
 DIRLINE:
-        DEFB      '.............'
+        DEFB      '             '
 DECSIZE:
-        DEFB      '________'
+        DEFB      '        '
         DEFB      CR, LF
         DEFB      TERMINATOR
 ;
