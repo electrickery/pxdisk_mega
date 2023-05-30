@@ -90,12 +90,12 @@ PF* commands to configure the PFBDK.
 	  Usage: PFMNT4 [<drive> <name>]
        drive = D, E, F, G.
        name = SD card file image name.
-      
-### PFNEW4 - create a new empty imageon the SD-card
+
+### PFNEW4 - create a new empty image on the SD-card
 
 	  Usage: PFNEW4 <name>'
-      ' name = SD card file image name.'
-      
+       name = SD card file image name.
+
 ### PFWP4 - manage write protect flag of a drive
 
       Usage: PFWP4 [<drive> <wp-state>]
@@ -105,6 +105,8 @@ PF* commands to configure the PFBDK.
 
 ## Case
 
+More photo's of the cases and the [3D-printer design files](https://electrickery.nl/comp/tf20/pxdisk/) 
+at my main site.
 
 ## Extra tech
 
