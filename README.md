@@ -69,10 +69,15 @@ the SDLib library for VFAT disks.
 
 The idea is make most settings controllable from the PX-4/PX-8 with 
 custom commands and make settings persistent. After all the PX-4/8 talks to the PFBDK
-using the [well documented EPSP protocol](https://electrickery.nl/comp/tf20/pxdisk/pxDiskMega3DprintFiles.zip), and extending the PFBDK firmware with new commands is entirely 
-possible. For the PX-4 side some user programs can be added, similar in usage as the 
+using the [well documented EPSP protocol](https://electrickery.nl/comp/tf20/pxdisk/pxDiskMega3DprintFiles.zip), 
+and extending the PFBDK firmware with new commands is entirely 
+possible. 
+For the PX-4 side some user programs can be added, similar in usage as the 
 original COPYDISK program. So far only some demos for the
 PX-4 are realized. The PX-8 uses another BIOS call, and will be implemented later.
+For persistency, no solution is implemented yet, but the simplest
+way would probably be to create a CP/M batch file on the RAM disk A: using the 
+PF* commands to configure the PFBDK. 
 
 ### PFDIR4 - display SD-card root directory
 
@@ -85,6 +90,11 @@ PX-4 are realized. The PX-8 uses another BIOS call, and will be implemented late
 	  Usage: PFMNT4 [<drive> <name>]
        drive = D, E, F, G.
        name = SD card file image name.
+      
+### PFNEW4 - create a new empty imageon the SD-card
+
+	  Usage: PFNEW4 <name>'
+      ' name = SD card file image name.'
       
 ### PFWP4 - manage write protect flag of a drive
 
@@ -104,4 +114,4 @@ traffic between the PX-4 and the PFBDK: https://github.com/electrickery/DualSeri
 
 
 
-fjkraan@electrickery.nl, 2023-05-26
+fjkraan@electrickery.nl, 2023-05-30

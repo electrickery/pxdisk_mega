@@ -10,8 +10,8 @@
 /////////////////////////////////////////////////
 
 #define MAJOR_VERSION 1
-#define MINOR_VERSION 5
-#define PATCH         4
+#define MINOR_VERSION 6
+#define PATCH         0
 
 #include <SPI.h>
 #include <SD.h>
@@ -392,10 +392,6 @@ void sendText()
   bool returnStatus = true;
   char managementCommand;
 
-//  if (console) {
-//    DEBUGPORT.print(C_STX);
-//    DEBUGPORT.print(" ");
-//  }
   switch(latestFNC)
   {
 //////////////////////////////////////////////////////////////////////////////
@@ -406,11 +402,6 @@ void sendText()
 //////////////////////////////////////////////////////////////////////////////
     case FN_DISK_SELECT:   // ??? Where is this?  Not in PX8 OSRM ch 15 epsp.html
       sendByte(0);
-  //  if (console) {
-  //      DEBUGPORT.print("SEL");
-  //      DEBUGPORT.print(0);
-  //      DEBUGPORT.print(" ");
-  //  }
       cks -= 0;
       break;
 //////////////////////////////////////////////////////////////////////////////
@@ -434,11 +425,6 @@ void sendText()
     case FN_DISK_WRITE_SECTOR:
     device = selectedDevice * 2 + textBuffer[0] - 1;
     if (writeProtect[device] == true) {
-//        if (console) {
-//            DEBUGPORT.print(F("Device: "));
-//            DEBUGPORT.print(device);
-//            DEBUGPORT.println(F(" is write protected")); 
-//        } 
         returnCode = BDOS_RC_WRITE_ERROR; // not the correct code, but the PX is happy.
     } else {
         returnStatus = diskWriteSector(selectedDevice, textBuffer[0] - 1, 
@@ -478,7 +464,7 @@ void sendText()
         }
         DEBUGPORT.println();
       }
-      if (console)  DEBUGPORT.print("serB: ");
+      if (console)  DEBUGPORT.print(F("serB: "));
       for (uint8_t i = 0; i < setBufPointer; i++) {
         serialBuffer[i] = textBuffer[i]; // prep the commandInterpreter
         if (console) {
@@ -505,11 +491,6 @@ void sendText()
       break;
   }
   sendByte(C_ETX);
-
-//  if (console) {
-//    DEBUGPORT.print(C_ETX);
-//    DEBUGPORT.print(" ");
-//  }
 
   cks -= C_ETX;
   sendByte(cks);
@@ -676,11 +657,6 @@ void stateMachine(uint8_t b)
       {
         oldState = state;
         state = ST_ERR;
-//        if (console) {
-//          DEBUGPORT.print(F(" >>>> Invalid command: "));
-//          DEBUGPORT.print(b, HEX);
-//          DEBUGPORT.println();
-//        }
       }
       break;
 //////////////////////////////////////////////////////////////////////////////
@@ -872,7 +848,7 @@ void commandCollector() {
       serialBuffer[setBufPointer] = inByte;
       setBufPointer++;
       if (setBufPointer >= SERIALBUFSIZE) {
-        DEBUGPORT.println("Serial buffer overflow. Cleanup.");
+        DEBUGPORT.println(F("Serial buffer overflow. Cleanup."));
         clearSerialBuffer();
         setBufPointer = 0;
       }
@@ -1045,7 +1021,7 @@ void loadDirectory() {  // L[d]
       entryCount++;
     }
     root.close();
-    if (console) dumpTextBuffer();
+//    if (console) dumpTextBuffer();
   }
 }
 
@@ -1109,7 +1085,7 @@ bool mountCheck(String filename) {
   if (console) {
     DEBUGPORT.print(F("Opening '"));
     DEBUGPORT.print(filename);
-    DEBUGPORT.println("' failed");
+    DEBUGPORT.println(F("' failed"));
   }
   return false;
 }
@@ -1161,13 +1137,9 @@ bool remount(uint8_t bufSize, char drive) {
     filename.trim(); // remove extra spaces
     if (console) {
       if (mountCheck(filename)) {
-        DEBUGPORT.print("New file name for ");
+        DEBUGPORT.print(F("New file name for "));
         DEBUGPORT.print(drive);
-    //    DEBUGPORT.print(" [");
-    //    DEBUGPORT.print(driveIndex);
         DEBUGPORT.print(": ");
-    //    DEBUGPORT.print(bufSize, DEC);
-    //    DEBUGPORT.print("] ");
         DEBUGPORT.print(filename);
         DEBUGPORT.println();
       }
@@ -1209,16 +1181,20 @@ void newFile() {
   String filename = command.substring(1, bufSize);
   filename.toLowerCase();
   filename.trim(); // remove extra spaces
-  if (console) {
-    if (checkFilePresence(filename)) {
+  if (checkFilePresence(filename)) {
+    if (console) {
       DEBUGPORT.print(F("File: "));
       DEBUGPORT.print(filename);
       DEBUGPORT.println(F(" exists. Aborting."));
-    } else {
-      createFile(filename);
-      DEBUGPORT.print("File created: ");
+    }
+    textBuffer[0x00] = 1;
+  } else {
+    if (console) { 
+      DEBUGPORT.print(F("File created: "));
       DEBUGPORT.println(filename);
-    } 
+    }
+    createFile(filename);
+    textBuffer[0x00] = 0;
   }
 }
 
@@ -1262,14 +1238,14 @@ void protect() {
        }
      } else {
       if (console) {
-         DEBUGPORT.print("Illegal drive: ");
+         DEBUGPORT.print(F("Illegal drive: "));
          DEBUGPORT.println(drive);
       }
      }
    } else {
      if (console) {
       DEBUGPORT.print(setBufPointer, DEC);
-      DEBUGPORT.println(" Punsupported");
+      DEBUGPORT.println(F(" unsupported"));
      }
    }
 }
@@ -1285,13 +1261,10 @@ void reportP() {
     DEBUGPORT.print("G: ");
     DEBUGPORT.println((writeProtect[3]) ? "RO" : "RW"); 
   } else {
-    textBuffer[0] = 'D'; textBuffer[1] = ' '; textBuffer[2] = (writeProtect[0] + '0'); textBuffer[3] = LF;
-    textBuffer[4] = 'E'; textBuffer[5] = ' '; textBuffer[6] = (writeProtect[1] + '0'); textBuffer[7] = LF;
-    textBuffer[8] = 'F'; textBuffer[9] = ' '; textBuffer[10] = (writeProtect[2] + '0'); textBuffer[11] = LF;
+    textBuffer[0]  = 'D'; textBuffer[1]  = ' '; textBuffer[2]  = (writeProtect[0] + '0'); textBuffer[3]  = LF;
+    textBuffer[4]  = 'E'; textBuffer[5]  = ' '; textBuffer[6]  = (writeProtect[1] + '0'); textBuffer[7]  = LF;
+    textBuffer[8]  = 'F'; textBuffer[9]  = ' '; textBuffer[10] = (writeProtect[2] + '0'); textBuffer[11] = LF;
     textBuffer[12] = 'G'; textBuffer[13] = ' '; textBuffer[14] = (writeProtect[3] + '0'); textBuffer[15] = LF;
-//    for (int i = 0; i < 0x40; i++) {
-//      if (textBuffer[i] == 0x00) textBuffer[i] = 0x20;
-//    }
   }
 }
 
@@ -1341,7 +1314,7 @@ void driveLedOn(uint8_t drive) {
       digitalWrite(G_LED, LOW);
       break;
     default:
-      if (console) DEBUGPORT.println("Unknown drive");
+      if (console) DEBUGPORT.println(F("Unknown drive"));
   }
 }
 
@@ -1362,10 +1335,6 @@ void debugLedOff() {
 }
 
 uint8_t long2byte(uint32_t value, uint8_t byte) {
-    // byte 0 is LSB, byte 3 is MSB
-//    uint8_t bitShift = bitShift;
-//    uint32_t mask = (0xFF << bitShift);
-//    return ((value & mask) >> bitShift);
   uint8_t mmsb = value / 0x1000000;
   uint8_t mlsb = value / 0x10000 - mmsb * 0x100;
   uint8_t lmsb = value / 0x100 - mlsb * 0x100 - mmsb * 0x10000;

@@ -184,6 +184,7 @@ enum PFBDKFuncs
   PFC_RST    = 'R',
 };
 
+// Size of the returned block -1
 #define DTEXTSIZE 128
 #define MTEXTSIZE  64
 #define NTEXTSIZE   0
