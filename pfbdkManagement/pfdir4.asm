@@ -88,6 +88,7 @@ READ:
 
         CALL    GETARGSZ
         JP      NZ, USAGE       ; 
+PARTLOOP:
         
         CALL    DSPNO
 ;
@@ -99,6 +100,10 @@ READ:
         JP      NZ,READERR      ; Read error.
 ;
         CALL    PRDATA          ; Display FDD data.
+        
+; TODO: create a loop over all parts 
+;        JR      PARTLOOP
+        
 ;
         JP      WBOOT
 ;
@@ -230,9 +235,9 @@ PDLOOP:
         DEC     A
         OR      A
         LD      (DIRECNT), A
+        CP      0
         RET     Z
         JR      PDLOOP
-        
         RET
         
 BCD2BUF:
