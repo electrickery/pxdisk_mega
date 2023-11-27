@@ -87,7 +87,7 @@ READ:
         CALL    BANNER
 
         CALL    GETARGSZ
-        JP      NZ, USAGE
+        JP      NZ, USAGE       ; 
         
         CALL    DSPNO
 ;
@@ -153,12 +153,14 @@ GETARGSZ:
         JR      Z, GA1ARG
         RET                     ; NZ : inproper args
         
-GA0ARG:
-        XOR     A
+GA0ARG:                         ; No arguments, assuming part 0
+        LD      HL, GA0ARGMSG
+        CALL    DSPMSG
+        LD      A, '0'          ; emulate ASII input
         LD      (DIRPART), A
         RET
         
-GA1ARG:
+GA1ARG:                         ; One argument (space and number)
         LD      HL, ARGS
         INC     HL              ; space
         INC     HL              ; arg char
@@ -168,12 +170,12 @@ GA1ARG:
         RET
 
 DSPNO:
-        ADD     A, '0'
         LD      C, A
         CALL    CONOUT
         LD      HL, CRLF
         CALL    DSPMSG
-
+        
+        RET
 ;      
 BANNER:
         LD      HL,BANNERMSG     ;FDD access error message.
@@ -353,9 +355,9 @@ ABORT:
         CALL    DSPMSG
         JP      WBOOT
 USAGE:
-        CALL    ARGDUMP
+        CALL    ARGDUMP         ; Print argument string with quotes
         LD      HL, USAGEMSG
-        CALL    DSPMSG
+        CALL    DSPMSG          ; Print usage
         JP      WBOOT
 READERR:
         LD      HL,RDERRMSG     ;FDD read error message.
@@ -456,6 +458,17 @@ USAGEMSG:
         DEFB      CR,LF
         DEFB      'PFDIR4 [n]'
         DEFB      CR,LF
+        DEFB      TERMINATOR
+
+GA0ARGMSG:
+        DEFB      CR,LF
+        DEFB      'No part no. Assume 0.'
+        DEFB      CR,LF
+        DEFB      TERMINATOR
+
+PARTNOMSG:
+        DEFB      CR,LF
+        DEFB      'Part no '
         DEFB      TERMINATOR
 
 ;
