@@ -13,22 +13,22 @@ These are the sub-commands implemented for the new E0h message:
 The D and N command should be send to the unit, not the drive. But this would mean a destination
 should be defined for this.
 
+The original intention was to format the message on the Arduino-side, so the Z80 assembly code
+could just copy that to the display. This idea is somewhat abandoned due to space constratints.
+
+Each command has a CP/M program that executes it and displays the result. These program use the
+Epson BIOS extension CALLX. With some luck the PX-4 implementation can be adapted to the PX-8.
+
 ### D
  
 D[0] returns first four root directory entries
 D[n] returns four root directory entries starting with the 4*nth 
 an entry name starting with 0E5h indicates there are no more entries.
 
-The D command returns a text block of up to 128 bytes containing up to four directory entries (name and size)
+The D command returns a text block of up to 128 bytes containing up to eight directory entries (name and size)
 
-	nnnnnnnn.eee              ssssss
-	nnnnnn.eee                ssssss
-	nnnnnnnn.eee                ssss
-	nnnnnnnn.eee              ssssss
-
-All image file names are in the 8.3 format, as the SD library presents them.
-
-Possible alternative:
+All image file names are in the 8.3 format, as the SD library presents them. Directories have a '/' appended to
+the file name, but could overwrite the last extension character.
 
 	nnnnnnnn.eeesss<LF>
 	nnnnnnnn.eeesss<LF>
@@ -40,7 +40,8 @@ Possible alternative:
 	nnnnnnnn.eeesss<LF>
   
 nnnnnnnn.eee is the filename in 8.3 format, sss are the three lowest bytes of an int (as returned by the SD-library.)
-This allows eight files in a 128 byte text block.
+This allows eight files in a 128 byte text block. Nice thing is the PX8/4 screen is eight lines high too. The three
+int bytes are converted to a decimal value.
   
 
 ### M
@@ -50,19 +51,13 @@ Mdnnnnnnnn.eee mounts the image nnnnnnnn.eee on drive d and returns the currentl
 
 The M command always returns a text block of 64 bytes containing drive letters and image names
 
-	D nnnnnnnn.eee  
-	E nnnnnnnn.eee  
-	F nnnnnnnn.eee  
-	G nnnnnnnn.eee  
-   
-Actually implemented:
 	Dnnnnnnnn.eeepRp<LF>
 	Ennnnnnnn.eeepRp<LF>
 	Fnnnnnnnn.eeepRp<LF>
 	Gnnnnnnnn.eeepRp<LF>
 
 D, E, F, G are drives, nnnnnnnn.eee is the filename in 8.3 format, p is the Write-protect flag; 0 = RW, 1 = R0
-R is a constant
+R is a constant.
 
 
 ### N
