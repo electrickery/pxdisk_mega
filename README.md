@@ -69,7 +69,7 @@ the SDLib library for VFAT disks.
 
 The idea is make most settings controllable from the PX-4/PX-8 with 
 custom commands and make settings persistent. After all the PX-4/8 talks to the PFBDK
-using the [well documented EPSP protocol](https://electrickery.nl/comp/tf20/pxdisk/pxDiskMega3DprintFiles.zip), 
+using the [well documented EPSP protocol](https://electrickery.nl/comp/hx20/doc/SwAsDisAs.pdf), 
 and extending the PFBDK firmware with new commands is entirely 
 possible. 
 For the PX-4 side some user programs can be added, similar in usage as the 
