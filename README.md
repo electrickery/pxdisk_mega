@@ -34,7 +34,8 @@ but easier to program. For normal operation the two are equal. The usage is now:
  	P[dw]            - write protect drive d; w=0 RW, w=1 RO
  	R                - temp reset Arduino
 
-Note that most changes made are not persistent and will be lost when switching 
+Note that most changes made with these tools are not persistent (image 
+creation being the exception) and will be lost when switching 
 off or resetting the floppy emulator. The default settings are images **D.IMG**, 
 **E.IMG**, **F.IMG** and **G.IMG** for the drives and all drives are writable.
 
@@ -116,4 +117,4 @@ traffic between the PX-4 and the PFBDK: https://github.com/electrickery/DualSeri
 
 
 
-fjkraan@electrickery.nl, 2023-05-30
+fjkraan@electrickery.nl, 2023-12-03
