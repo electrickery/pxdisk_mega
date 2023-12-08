@@ -11,7 +11,7 @@
 
 #define MAJOR_VERSION 1
 #define MINOR_VERSION 6
-#define PATCH         0
+#define PATCH         1
 
 #include <SPI.h>
 #include <SD.h>
@@ -969,6 +969,8 @@ void loadDirectory() {  // L[d]
   
     while (console) {
       File entry =  root.openNextFile();
+      DEBUGPORT.print(entry, HEX);
+      DEBUGPORT.println(" ");
       if (!entry) {
         // no more files
         if (console) DEBUGPORT.print(F(" -- no more entries-- "));
@@ -996,27 +998,27 @@ void loadDirectory() {  // L[d]
   
       uint8_t sizeByte = long2byte(size, 2);
       textBuffer[entrySizeOffset++] = sizeByte;
-  if (console) {
-    if (sizeByte < 0x10) DEBUGPORT.print("0");
-    DEBUGPORT.print(sizeByte, HEX);
-  }
-    
+      if (console) {
+        if (sizeByte < 0x10) DEBUGPORT.print("0");
+        DEBUGPORT.print(sizeByte, HEX);
+      }
+
       sizeByte = long2byte(size, 1);
       textBuffer[entrySizeOffset++] = sizeByte;
-  if (console) {
-    if (sizeByte < 0x10) DEBUGPORT.print("0");
-    DEBUGPORT.print(sizeByte, HEX);
-  }
-    
+      if (console) {
+        if (sizeByte < 0x10) DEBUGPORT.print("0");
+        DEBUGPORT.print(sizeByte, HEX);
+      }
+
       sizeByte = long2byte(size, 0);
       textBuffer[entrySizeOffset++] = sizeByte;
-  if (console) {
-    if (sizeByte < 0x10) DEBUGPORT.print("0");
-    DEBUGPORT.print(sizeByte, HEX);
-  }
-  
-    textBuffer[entrySizeOffset] = LF;
-    if (console) DEBUGPORT.println();
+      if (console) {
+        if (sizeByte < 0x10) DEBUGPORT.print("0");
+        DEBUGPORT.print(sizeByte, HEX);
+      }
+
+      textBuffer[entrySizeOffset] = LF;
+      if (console) DEBUGPORT.println();
       entry.close();
       entryCount++;
     }

@@ -19,6 +19,10 @@
                 ORG     0100h   
 ;
 ;       <> constant values <>
+
+MAJOR_V         EQU     '1'
+MINOR_V         EQU     '1'
+
 ;
 ;       BIOS entry
 ;
@@ -50,13 +54,14 @@ BANK2           EQU     002H    ; Bank 2 (ROM capsel  2)
 EPSPSND         EQU     0030H
 EPSPRCV         EQU     0033H
 ;
-;
+;       EPSP
 FMT             EQU     00h
 DID             EQU     31H
 SID             EQU     23H
 FNC             EQU     0E0H    ; Epsp command selected for PFBDK management. 
                                 ; first byte in the text block is the PFBDK command
 SENDSIZ         EQU     01H     ; Variable value; 0 for one byte, 1 for two bytes
+ENTPPART        EQU     08H     ; Number of directory entries per part
 ;
 ;
 BREAKKEY        EQU     03H     ; BREAK key code
@@ -89,26 +94,38 @@ READ:
         CALL    GETARGSZ
         JP      NZ, USAGE       ; 
 PARTLOOP:
-        
+
         CALL    DSPNO
 ;
         CALL    SENDCMD         ; Send command to PFBDK.
         JP      NZ,DISKERR      ; Disk access error.
-        
+
         LD      A,(PKT_STS)     ; Return parameter.
         OR      A               ;
         JP      NZ,READERR      ; Read error.
 ;
         CALL    PRDATA          ; Display FDD data.
         
-; TODO: create a loop over all parts 
-;        JR      PARTLOOP
+        CALL    CONIN
+        CP      ' '
+        JR      Z,PLNEXT
+        CP      CR
+        JR      Z,PLNEXT
+        CP      LF
+        JR      Z,PLNEXT
         
-;
+PLDONE:
         JP      WBOOT
+        
+PLNEXT:        
+        LD      A, (DIRPART)
+        INC     A
+        LD      (DIRPART), A
+        JR      PARTLOOP
+;
 ;
 ;       ********************************************************
-;               SEND P-COMMAND with optional drive and wp-flag
+;               SEND D-COMMAND with drive number
 ;       ********************************************************
 ;
 ;       NOTE :
@@ -161,7 +178,7 @@ GETARGSZ:
 GA0ARG:                         ; No arguments, assuming part 0
         LD      HL, GA0ARGMSG
         CALL    DSPMSG
-        LD      A, '0'          ; emulate ASII input
+        LD      A, '0'          ; emulate ASCII input
         LD      (DIRPART), A
         RET
         
@@ -197,9 +214,12 @@ DUMPCHR:
         RET
  
 PRDATA:
+        LD      A, ENTPPART
+        LD      (DIRECNT), A     ; set number of
         LD      A, (PKT_RDT)
         LD      HL, PKT_RDT
         LD      (DIREPTR), HL
+
 PDLOOP:        
         CP      020h            ; is it a space?
         RET     Z
@@ -417,7 +437,7 @@ DIRPART:
 DIREPTR:
         DEFW      0, 0
 DIRECNT:
-        DEFW      8
+        DEFW      ENTPPART
 SIZ:    
         DEFB      00h
         
@@ -436,7 +456,10 @@ DECSIZE:
 ;
 ;
 BANNERMSG:
-        DEFB      'PFDIR4 v1.0'
+        DEFB      'PFDIR4 v'
+        DEFB      MAJOR_V
+        DEFB      '.'
+        DEFB      MINOR_V
 CRLF:
         DEFB      CR, LF
         DEFB      TERMINATOR
