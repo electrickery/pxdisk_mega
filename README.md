@@ -83,8 +83,9 @@ PF* commands to configure the PFBDK.
 ### PFDIR4 - display SD-card root directory
 
         Usage: PFDIR4 [n]
-         n = optional directory section 
-          (each section is eight entries)
+         n = optional the start directory part 
+          (each part is eight entries, ENTER and SPACE gets next part,
+           other keys exit program)
 
 ### PFMNT4 - mount a SD-card image file to a drive
 
