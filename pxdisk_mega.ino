@@ -89,6 +89,7 @@ void setup()
 
   root = SD.open("/");
   if (console) {
+
     printDirectory();
   }
   root.close();

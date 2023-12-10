@@ -6,9 +6,9 @@ bool console = false;
 #if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
 #define BOARD_MEGA
 #define BOARDTEXT       "Mega2560"
-#define PXPORT          Serial2
-#define DEBUG           true       // Change to true for debugging
-#define DEBUGPORT       Serial
+#define PXPORT          Serial2    // pin 16 & 17
+//#define DEBUG           true       // Change to true for debugging
+#define DEBUGPORT       Serial     // pin 0 & 1 and USB port
 #define CS_PIN          53         // SD card CS pin
 #define D_LED            9
 #define E_LED           10
@@ -21,9 +21,9 @@ bool console = false;
 #if defined(__AVR_ATmega32U4__)
 #define BOARD_MICRO
 #define BOARDTEXT       "Pro_Micro"
-#define PXPORT          Serial1
-#define DEBUG           true       // Change to true for debugging
-#define DEBUGPORT       Serial
+#define PXPORT          Serial1    // pin 0 & 1
+//#define DEBUG           true       // Change to true for debugging
+#define DEBUGPORT       Serial     // USB port
 #define CS_PIN          10         // SD card CS pin
 #define D_LED            2
 #define E_LED            3
