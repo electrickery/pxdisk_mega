@@ -2,7 +2,8 @@
 ///  pxdisk
 ///  copyright(c) 2019 William R Cooke
 ///  
-///  command line interpreter and blinking lights: 2023, Fred Jan Kraan
+///  command line interpreter, blinking lights, 
+///  SD-card management: 2023, Fred Jan Kraan
 ///  https://github.com/electrickery/pxdisk_mega
 ///
 ///  Use an SD card as multiple disk drives for 
@@ -11,7 +12,7 @@
 
 #define MAJOR_VERSION 1
 #define MINOR_VERSION 6
-#define PATCH         1
+#define PATCH         3
 
 #include <SPI.h>
 #include <SD.h>
@@ -68,6 +69,14 @@ void setup()
   PXPORT.begin(PXBAUDRATE);
   int sd = SD.begin(CS_PIN);
 
+  if (!sd) {
+    if (console) DEBUGPORT.println("No SD-card, halted.");
+    while(1) {
+      digitalWrite(DEBUGLED, !digitalRead(DEBUGLED));
+      delay(250L);
+    }
+  }
+
   // TODO:  Why in the haydes do we need to do this?
   // It appears to be a timing issue.  First use of a read 
   // seems to get everything initialized.  If we wait until needed
@@ -80,8 +89,6 @@ void setup()
 
   root = SD.open("/");
   if (console) {
-    DEBUGPORT.println();
-    DEBUGPORT.println(F("Root directory:"));
     printDirectory();
   }
   root.close();
@@ -171,9 +178,6 @@ bool diskWriteSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, 
     dsk.write(buffer, DISK_BYTES_PER_SECTOR);
     dsk.close();
 
-//    if (console) DEBUGPORT.write("W:");
-//    if (console) DEBUGPORT.println(diskNames[device]);
-//    DEBUGPORT.println(PXPORT.available());
     driveLedOn(device);
   }
   else
@@ -304,7 +308,6 @@ uint8_t receiveByte()
   /// TODO:  fix rtn: uint8_t won't work right!
   uint8_t rtn;
   while( (rtn = PXPORT.read()) < 0);
-//  if (console) DEBUGPORT.print(rtn, HEX);
   return rtn;
 }
 
@@ -382,7 +385,6 @@ void sendHeader()
 //////////////////////////////////////////////////////////////////////////////
 void sendText()
 {
-//  if (console) DEBUGPORT.print("S_T: ");
   uint8_t device;
   uint8_t cks = 0;
   uint8_t returnCode = 0;
@@ -463,8 +465,8 @@ void sendText()
           DEBUGPORT.print(textBuffer[i], HEX); DEBUGPORT.print(" "); 
         }
         DEBUGPORT.println();
+        DEBUGPORT.print(F("serB: "));
       }
-      if (console)  DEBUGPORT.print(F("serB: "));
       for (uint8_t i = 0; i < setBufPointer; i++) {
         serialBuffer[i] = textBuffer[i]; // prep the commandInterpreter
         if (console) {
@@ -591,8 +593,6 @@ void stateMachine(uint8_t b)
           sendByte(C_ACK);
           selectedDevice = latestDID - MY_ID_1;
           state = ST_PS_ENQ;
-          
-  //        if (console) DEBUGPORT.println("E_ACK");
       }
       else
       {
@@ -672,7 +672,6 @@ void stateMachine(uint8_t b)
       if(latestCKS == 0)
       {
         sendByte(C_ACK);
-  //      if (console) DEBUGPORT.println("HD ACK");
         state = ST_HD_CKS;
       }
       else
@@ -719,13 +718,11 @@ void stateMachine(uint8_t b)
       if(b == C_ETX)
       {
         state = ST_TX_ETX;
-  //      if (console) DEBUGPORT.println("TX ETX");
       }
       else
       {
         oldState = state;
         state = ST_ERR;
-  //      if (console) DEBUGPORT.print("E");
       }
       break;
 //////////////////////////////////////////////////////////////////////////////
@@ -735,7 +732,6 @@ void stateMachine(uint8_t b)
       {
          sendByte(C_ACK);
          state = ST_TX_CKS; 
-  //      if (console) DEBUGPORT.println("Got TX CKS");
       }
       else
       {
@@ -748,7 +744,6 @@ void stateMachine(uint8_t b)
       if(b == C_EOT)
       {
         sendHeader();
-  //      if (console) DEBUGPORT.println("SENT HDR");
         state = ST_SENT_HDR;
       }
       else
@@ -762,7 +757,6 @@ void stateMachine(uint8_t b)
      {
        sendText();
        state = ST_SENT_TXT;
-//       if (console) DEBUGPORT.println("SENT_TXT");
      }
      else
      {
@@ -777,7 +771,6 @@ void stateMachine(uint8_t b)
       {
         sendByte(C_EOT);
         state = ST_IDLE;
-  //      if (console) DEBUGPORT.println("Sent EOT");
       }
       else if(b == C_NAK)
       {
@@ -833,7 +826,7 @@ void loop()
   }
 }
 
-void commandCollector() {
+void commandCollector() { // only used when console is active
   if (console && DEBUGPORT.available() > 0) {
     int inByte = DEBUGPORT.read();
     switch(inByte) {
@@ -882,7 +875,7 @@ void commandInterpreter() {
       DEBUGPORT.println(F("):"));
 
       DEBUGPORT.println(F(" C                - temp debug for driveNames[][]"));
-      DEBUGPORT.println(F(" D[p]             - SD-card root directory (p is the optional set of 16 entries)"));
+      DEBUGPORT.println(F(" D[p]             - SD-card root directory"));
       DEBUGPORT.println(F(" H                - this help"));
       DEBUGPORT.println(F(" M[dnnnnnnnn.eee] - mount file nnnnnnnn.eee on drive d"));
       DEBUGPORT.println(F(" Nnnnnnnnn.eee    - create an image file nnnnnnnn.eee"));
@@ -940,7 +933,7 @@ void printDirectory() {
   root.close();
 }
 
-void loadDirectory() {  // L[d]
+void loadDirectory() {  // D[d]
   if (consoleCommand) {
     printDirectory();
   } else {
@@ -964,13 +957,11 @@ void loadDirectory() {  // L[d]
       if (console) DEBUGPORT.print(".");
       tmpEntry.close();
     }
-    DEBUGPORT.println();
+    if (console) DEBUGPORT.println();
     fillTextBuffer(' ');
-  
-    while (console) {
+
+    while (1) {
       File entry =  root.openNextFile();
-      DEBUGPORT.print(entry, HEX);
-      DEBUGPORT.println(" ");
       if (!entry) {
         // no more files
         if (console) DEBUGPORT.print(F(" -- no more entries-- "));
@@ -1348,7 +1339,8 @@ uint8_t long2byte(uint32_t value, uint8_t byte) {
   return 0;
 }
 
-void dumpTextBuffer() {
+void dumpTextBuffer() { // should be called only when console is true
+  if (console) return;
   uint8_t d;
   for (int i = 0; i < MAX_TEXT; i++) {
     if ((i % 16) == 0) {
