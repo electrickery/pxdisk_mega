@@ -10,11 +10,11 @@ These are the sub-commands implemented for the new E0h message:
 	Nnnnnnnnn.eee    - create an image file nnnnnnnn.eee
 	P[dw]            - write protect drive d; w=0 RW, w=1 RO
 
-The D and N command should be send to the unit, not the drive. But this would mean a destination
-should be defined for this.
+Strictly speaking the D and N command should be send to the unit, not the drive. But this would mean 
+a destination should be defined for this.
 
 The original intention was to format the message on the Arduino-side, so the Z80 assembly code
-could just copy that to the display. This idea is somewhat abandoned due to space constratints.
+could just copy that to the display. This idea is somewhat abandoned due to space constraints.
 
 Each command has a CP/M program that executes it and displays the result. These program use the
 Epson BIOS extension CALLX. With some luck the PX-4 implementation can be adapted to the PX-8.
@@ -41,8 +41,8 @@ the file name, but could overwrite the last extension character.
   
 nnnnnnnn.eee is the filename in 8.3 format, sss are the three lowest bytes of an int (as returned by the SD-library.)
 This allows eight files in a 128 byte text block. Nice thing is the PX8/4 screen is eight lines high too. The three
-int bytes are converted to a decimal value.
-  
+int bytes are converted to a decimal value. The PX-4 application PFDIR4 pauses after each part, ENTER or SPACE fetch the next part. Any other key aborts the program.
+
 
 ### M
 
@@ -70,8 +70,8 @@ The N command always returns an one byte text block and a single byte return cod
 
 ### P
 
-P returns the write protect flag state for all drives
-Pdw sets or clears the write protect flag w for drive d and returns the write protect flag state for all drives
+P returns the write protect flag state for all drives.
+Pdw sets or clears the write protect flag w for drive d and returns the write protect flag state for all drives.
 
 The P command always returns a text block of 16 bytes containing drive letters and write protect-status.
  
@@ -79,3 +79,6 @@ The P command always returns a text block of 16 bytes containing drive letters a
 	E p 
 	F p 
 	G p 
+
+This command is superfluous, as the write protect state could be specified at mount time. But this isn't
+implemented yet. The write protect state is already part or the PFMNT4 response.
