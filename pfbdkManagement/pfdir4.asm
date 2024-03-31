@@ -3,9 +3,10 @@
 ;       ********************************************************
 ;
 ;       NOTE :
-;               This program requests and displays the 
-;               contents of the root directory of the
-;               SD card
+;               This program requests and displays the contents of the 
+;               root directory of the SD card. The directory listing is 
+;               retrieved in parts, where each part is 128 bytes large 
+;               and contains 8 filenames / file sizes.
 ;
 ;       USAGE :
 ;               PFDIR4 
@@ -166,7 +167,13 @@ SENDCMD:
         CALL    CALLX           ; Go !!
 ;
         RET
-        
+
+; Check the size of the argument buffer. The argument is the part of the directory.
+;                                       There are 3 options:
+;                                          0: no arguments - set part to 0
+;                                          2: 2 chars, a space and a number. The
+;                                             number is interpreted as part number.
+;                                      other: error situation. NZ triggers usage msg.
 GETARGSZ:
         LD      A, (ARGS)
         CP      0
@@ -191,6 +198,7 @@ GA1ARG:                         ; One argument (space and number)
         
         RET
 
+; send the characher in A to the console. Send CR & LF to console.
 DSPNO:
         LD      C, A
         CALL    CONOUT
@@ -198,12 +206,14 @@ DSPNO:
         CALL    DSPMSG
         
         RET
-;      
+        
+; shortcut to send banner to console.
 BANNER:
         LD      HL,BANNERMSG     ;FDD access error message.
         CALL    DSPMSG
         RET
       
+; Send char to console. Saves AF & HL
 DUMPCHR:
         PUSH    AF
         PUSH    HL        
@@ -212,7 +222,8 @@ DUMPCHR:
         POP     HL
         POP     AF
         RET
- 
+
+; Print directory data. 8 entries, each <filename> <filesize>
 PRDATA:
         LD      A, ENTPPART
         LD      (DIRECNT), A     ; set number of
@@ -259,7 +270,8 @@ PDLOOP:
         RET     Z
         JR      PDLOOP
         RET
-        
+
+; Convert packed BCD to ASCII. The data is in DE and HL. 
 BCD2BUF:
         LD      A, D
         CALL    RRC4
@@ -363,7 +375,7 @@ RRC4:
         RRC     A
         RRC     A
         RET
-
+; end BIN2BCD
 ;
 ;********************************
 ;*                              *
@@ -503,7 +515,7 @@ PARTNOMSG:
 ;
         END
 
-
+; Transmit buffer
 ;PKT_TOP         EQU     0F931H          ;
 ;PKT_FMT         EQU     PKT_TOP
 
@@ -513,7 +525,7 @@ PARTNOMSG:
 ;PKT_TOP + 3  FNC code
 ;PKT_TOP + 4  SIZ data (n)
 ;PKT_TOP + 5  data 0 'P'
-;PKT_TOP + 6  data 1 <drive>; DEFG
-;PKT_TOP + 7  data 2 <wpflag<; 01
+;PKT_TOP + 6  data 1 <drive>;  values: DEFG
+;PKT_TOP + 7  data 2 <wpflag>; values: 01
 ;...
 ;PKT_TOP + (5+n)  data n
