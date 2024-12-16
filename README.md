@@ -3,12 +3,10 @@
 This is my fork of William R. Cooke's PFBDK sketch found at 
 http://wrcooke.net/projects/pfbdk/pfbdk.html
 
-![PFBDK on an Arduino Mega 2560 in a PETG box](PFBDKbox.jpg)
-
 The intend is to add some features making it somewhat more convenient to 
 use. The route will be very incremental to keep the basic functionality working.
 
-![PFBDK on an Arduino Pro Micro in a PLA box](pfbdkPMicroV1.0_front.jpg)
+![PFBDK on an Arduino Pro Micro in a PETG box](pfbdkPMicroV1.0_frontNewcase.jpg)
 
 For the Pro Micro a working PCB is created [PDF](PFBDK_promicro.kicad_sch.pdf), [KiCAD files](PFBDK_promicro_V1.0.complete.zip).
 
@@ -118,4 +116,4 @@ traffic between the PX-4 and the PFBDK: https://github.com/electrickery/DualSeri
 
 
 
-fjkraan@electrickery.nl, 2023-12-03
+fjkraan@electrickery.nl, 2024-12-16
