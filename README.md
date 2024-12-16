@@ -10,7 +10,7 @@ use. The route will be very incremental to keep the basic functionality working.
 
 For the Pro Micro a working PCB is created [PDF](PFBDK_promicro.kicad_sch.pdf), [KiCAD files](PFBDK_promicro_V1.0.complete.zip).
 
-There are 3D-print files for both cases and more pictures on my own page 
+There are 3D-print files for the case and more pictures on my own page 
 at: https://electrickery.nl/comp/tf20/pxdisk/
 
 ## Hardware extensions
