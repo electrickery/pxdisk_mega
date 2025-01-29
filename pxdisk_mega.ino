@@ -12,7 +12,7 @@
 
 #define MAJOR_VERSION 1
 #define MINOR_VERSION 6
-#define PATCH         3
+#define PATCH         4
 
 #include <SPI.h>
 #include <SD.h>
@@ -278,7 +278,7 @@ bool isValidDID(uint8_t id)
 //////////////////////////////////////////////////////////////////////////////
 bool isValidFNC(uint8_t f)
 {
-  bool rtn = true;
+  bool rtn = false;
   switch(f) {
     case FN_DISK_RESET:
     case FN_DISK_SELECT:

@@ -15,7 +15,8 @@ at: https://electrickery.nl/comp/tf20/pxdisk/
 
 ## Hardware extensions
 
-Both Arduino solutions support blinking lights for the SERIAL line and each (emulated) drive. 
+Both Arduino solutions (there is one for the Mega 2560) support blinking lights 
+for the SERIAL line and each (emulated) drive. 
 
 ## PFBDK console commands
 
