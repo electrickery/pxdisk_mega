@@ -20,7 +20,7 @@ at: https://electrickery.nl/comp/tf20/pxdisk/
 
 Each HX-20 drive is now a directory on the SD-card; A, B, C and D. The HX-20
 requires to files for its Disk-BASIC; BOOT.80 and DBASICnn.SYS. These files 
-should be in the root directory  of the SD-card (only DBASICnn.SYS file). 
+should be in the root directory  of the SD-card (only __one__ DBASICnn.SYS file). 
 
 ## Hardware extensions
 
