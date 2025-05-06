@@ -1,13 +1,18 @@
 // pxdisk.h
 /// Based on pxDisk copyright(c) 2019 William R Cooke
 
-bool console = false;
+bool console = true;
 
 #if defined(__AVR_ATmega1280__) || defined(__AVR_ATmega2560__)
+// On the Arduino Mega the SD-Card is on:
+// 50 MISO
+// 51 MOSI
+// 52 SCK
+// 53 CS
 #define BOARD_MEGA
 #define BOARDTEXT       "Mega2560"
 #define PXPORT          Serial2    // pin 16 & 17
-//#define DEBUG           true       // Change to true for debugging
+#define DEBUG           true       // Change to true for debugging
 #define DEBUGPORT       Serial     // pin 0 & 1 and USB port
 #define CS_PIN          53         // SD card CS pin
 #define D_LED            9
@@ -22,7 +27,7 @@ bool console = false;
 #define BOARD_MICRO
 #define BOARDTEXT       "Pro_Micro"
 #define PXPORT          Serial1    // pin 0 & 1
-//#define DEBUG           true       // Change to true for debugging
+#define DEBUG           true       // Change to true for debugging
 #define DEBUGPORT       Serial     // USB port
 #define CS_PIN          10         // SD card CS pin
 #define D_LED            2
@@ -110,14 +115,25 @@ int oldState = ST_UNDEFINED; // Used to report state before ST_ERR
 //////////////////////////////////////////////////////////////////////////////
 enum Functions
 {
-  FN_DISK_RESET           = 0x0d,    /// < RESET?
-  FN_DISK_SELECT          = 0x0e,    /// < SELECT?
-  FN_DISK_READ_SECTOR     = 0x77,    /// < Read a single 128 byte sector
-  FN_DISK_WRITE_SECTOR    = 0x78,    /// < Write a single 128 byte sector
-  FN_DISK_WRITE_HST       = 0x79,    /// < CP/M WRITEHST flushes buffers
-  FN_DISK_COPY            = 0x7a,    /// < Copy a complete disk -- not used
-  FN_DISK_FORMAT          = 0x7c,    /// < Format a blank disk  -- not used
-  FN_IMAGE_CMDS           = 0xE0,    /// < Commands managing disk images
+ FN_DISK_RESET          = 0x0d,    /// < RESET?
+ FN_DISK_SELECT         = 0x0e,    /// < SELECT?
+ FN_OPEN_FILE           = 0x0f,    /// < Opens a file to read
+ FN_CLOSE_FILE          = 0x10,    /// < Closes file
+ FN_FIND_FIRST          = 0x11,    /// < Find First
+ FN_FIND_NEXT           = 0x12,    /// < Find First
+ FN_CREATE_FILE         = 0x16,    /// < Creates file
+ FN_RANDOM_READ         = 0x21,    /// < 
+ FN_RANDOM_WRITE        = 0x22,    /// < 
+ FN_COMPUTE_FS          = 0x23,    /// < Compute Filesize
+ FN_DISK_READ_SECTOR    = 0x77,    /// < Read a single 128 byte sector
+ FN_DISK_WRITE_SECTOR   = 0x78,    /// < Write a single 128 byte sector
+ FN_DISK_WRITE_HST      = 0x79,    /// < CP/M WRITEHST flushes buffers
+ FN_DISK_COPY           = 0x7a,    /// < Copy a complete disk -- not used
+ FN_DISK_FORMAT         = 0x7c,    /// < Format a blank disk  -- not used
+ FN_DISK_BOOT           = 0x80,    /// < Send BOOT.SYS
+ FN_LOAD_OPEN           = 0x81,    /// < Relocate DBASIC.SYS
+ FN_READ_BLOCK          = 0x83,    /// < Send DBASIC.SYS
+ FN_IMAGE_CMDS          = 0xE0,    /// < Commands managing disk images
 };
 
 //////////////////////////////////////////////////////////////////////////////
@@ -140,9 +156,8 @@ uint8_t latestSID = 0;               /// < Latest received Source ID
 uint8_t latestFNC = 0;               /// < Latest received Funcion code
 uint8_t latestSIZ = 0;               /// < Latest received Text size
 uint8_t latestCKS = 0;               /// < Latest received calculated checksum
-
+uint8_t filecnt[4];                  /// < Holds the filecount for each directory (A/, B/, C/, D/)
 uint8_t textBuffer[MAX_TEXT];        /// < Buffer to hold incoming/outgoing text
-
 
 ///////////////////////////////////////////////////////
 ////////////////   SD card / file /////////////////////

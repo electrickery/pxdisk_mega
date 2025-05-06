@@ -9,10 +9,33 @@
 ///  Use an SD card as multiple disk drives for 
 ///  Epson PX-8 and PX-4 CP/M laptop computers
 /////////////////////////////////////////////////
+//
+// Additional work done by R. Offner in 2025
+// Epson HX-20 (aka HC-20) support added.
+// The files BOOT80.SYS and DBASICxx.SYS must be present on the SD-Card.
+// The xx in DBASICxx.SYS is the Endaddress (0x80 for 32k RAM and 0x40 for Standard)
+// Depending on the Address (which is sent by the HX-20) the correct file gets loaded.
+// This is a less CPU Intense operation and there is ample space on modern SD-Cards.
+// Features:
+// Version 2.0.0:
+// .) Loading Disk Basic (DBASIC.SYS and BOOT80.SYS) - YES (#0x80, #0x81, #0x83)
+// .) Implement both units and both Devices (four Floppies) - YES
+// .) Show Files (=DIR Command on HX-20) for the first file - YES (#0x11)
+// .) Show Files for the Rest of the Directory - YES (#0x12)
+// .) File Open - YES (0x0F)
+// .) File Compute Size Read - YES (#0x23)
+// .) File Random Read - YES (#0x21)
+// .) File Close - YES (#0x10)
+// .) File Create - YES  (#0x16)
+// .) File Compute Size Write - ? (#0x23)
+// .) File Random Write - YES (only <= 128 Bytes) (#0x22)
+// .) File Random Write - YES (> 128 Bytes) (#0x22)
+// There are for sure Problems with files of > 255 Records (32640 Bytes) (is this even possible on the HX-20?)
 
-#define MAJOR_VERSION 1
-#define MINOR_VERSION 6
-#define PATCH         4
+
+#define MAJOR_VERSION 2
+#define MINOR_VERSION 0
+#define PATCH         0
 
 #include <SPI.h>
 #include <SD.h>
@@ -87,10 +110,38 @@ void setup()
   diskReadSector(1, 0, 0, 1, textBuffer);
   diskReadSector(1, 1, 0, 1, textBuffer);
 
-  root = SD.open("/");
+  root = SD.open("/A/");
   if (console) {
+    DEBUGPORT.println("A:");
+    filecnt[0] = printDirectory(root, 0); // We save the filecount for later
+    DEBUGPORT.print("Files: ");
+    DEBUGPORT.println(filecnt[0]);
 
-    printDirectory();
+    //root.rewindDirectory();  // go back to the first file
+  }
+  root.close();
+  root = SD.open("/B/");
+  if (console) {
+    DEBUGPORT.println("B:");
+    filecnt[1] = printDirectory(root, 0); // We save the filecount for later
+    DEBUGPORT.print("Files: ");
+    DEBUGPORT.println(filecnt[1]);
+  }
+  root.close();
+  root = SD.open("/C/");
+  if (console) {
+    DEBUGPORT.println("C:");
+    filecnt[2] = printDirectory(root, 0); // We save the filecount for later
+    DEBUGPORT.print("Files: ");
+    DEBUGPORT.println(filecnt[2]);
+  }
+  root.close();
+  root = SD.open("/D/");
+  if (console) {
+    DEBUGPORT.println("D:");
+    filecnt[3] = printDirectory(root, 0); // We save the filecount for later
+    DEBUGPORT.print("Files: ");
+    DEBUGPORT.println(filecnt[3]);
   }
   root.close();
 
@@ -278,15 +329,26 @@ bool isValidDID(uint8_t id)
 //////////////////////////////////////////////////////////////////////////////
 bool isValidFNC(uint8_t f)
 {
-  bool rtn = false;
+  bool rtn = true;
   switch(f) {
     case FN_DISK_RESET:
     case FN_DISK_SELECT:
+    case FN_OPEN_FILE:
+    case FN_CLOSE_FILE:
+    case FN_FIND_FIRST:
+    case FN_FIND_NEXT:
+    case FN_CREATE_FILE:
+    case FN_RANDOM_READ:
+    case FN_RANDOM_WRITE:
+    case FN_COMPUTE_FS:
     case FN_DISK_READ_SECTOR:
     case FN_DISK_WRITE_SECTOR:
     case FN_DISK_WRITE_HST:
     case FN_DISK_COPY:
     case FN_DISK_FORMAT:
+    case FN_DISK_BOOT: 
+    case FN_LOAD_OPEN: 
+    case FN_READ_BLOCK:
     case FN_IMAGE_CMDS:
       rtn = true;
       break;
@@ -367,6 +429,36 @@ void sendHeader()
     thisSIZ = getTxtSize(textBuffer[0]);
     break;
     
+    case FN_DISK_BOOT:
+    thisSIZ = 0xFF;
+    break;
+    
+    case FN_LOAD_OPEN:
+    thisSIZ = 0x02;
+    //if (console) DEBUGPORT.print(F("in Send HDR '"));
+    break;
+    
+    case FN_READ_BLOCK:
+    thisSIZ = 0x82;
+    break;
+
+    case FN_FIND_FIRST:
+    case FN_FIND_NEXT:
+    thisSIZ = 0x24;
+    break;
+    
+    case FN_COMPUTE_FS:
+    thisSIZ = 0x05; 
+    break;
+
+    case FN_RANDOM_READ:
+    thisSIZ = 0x82; 
+    break;
+
+    case FN_RANDOM_WRITE:
+    thisSIZ = 0x02;
+    break;
+
     default:
     thisSIZ = 0x00;
     break;
@@ -384,78 +476,562 @@ void sendHeader()
 ///  @brief  Sends text to Master based on most recently received data.
 ///
 //////////////////////////////////////////////////////////////////////////////
-void sendText()
-{
+void sendText(){
   uint8_t device;
   uint8_t cks = 0;
   uint8_t returnCode = 0;
   sendByte(C_STX);
   cks -= C_STX;
   uint8_t i = 0;
+  uint8_t j = 0;
   bool returnStatus = true;
   char managementCommand;
+  uint16_t fsz = 4224; // Hardcoded size of DBASIC.SYS (must be multiple of 128!)
+  static uint8_t _hi;
+  static uint8_t _lo;
+  uint8_t temp;
+  File fileTS;
+  static uint8_t block;
+  static uint8_t blocks;
+  static uint8_t filenr;
+  static uint8_t unit = 0;
+  static uint8_t filecnt_off = 0;
+  static String filename;
 
-  switch(latestFNC)
-  {
-//////////////////////////////////////////////////////////////////////////////
-    case FN_DISK_RESET:
+  switch (latestFNC) {
+
+    case FN_DISK_RESET:  // 0d
       sendByte(returnCode);       // return success
       cks -= 0;
       break;
 //////////////////////////////////////////////////////////////////////////////
-    case FN_DISK_SELECT:   // ??? Where is this?  Not in PX8 OSRM ch 15 epsp.html
+    case FN_DISK_SELECT:  // 0e - ??? Where is this?  Not in PX8 OSRM ch 15 epsp.html
       sendByte(0);
       cks -= 0;
       break;
 //////////////////////////////////////////////////////////////////////////////
-    case FN_DISK_READ_SECTOR:
+    case FN_OPEN_FILE:  // 0f (Done)
+    {   
+      filecnt_off = textBuffer[2] + (selectedDevice * 2) -1; // goes from 0..3 for A: to D:
+      unit = textBuffer[2];
+      filename = "";
+      switch (filecnt_off){
+      case 0: // A:
+        filename += "/A/";
+        break;
+      case 1: // B:
+        filename += "/B/";
+        break;
+      case 2: // C:
+        filename += "/C/";
+        break;
+      case 3: // D:
+        filename += "/D/";
+        break;
+      default:
+        break;
+      }      
+      for (i = 0; i < 8; i++ ){
+        if (textBuffer[i+3] != 0x20){
+          filename += (char) textBuffer[i+3]; // add filename
+        }
+      }
+      filename += '.';                    // add dot
+      for (i = 8; i < 11; i++ ){
+        filename += (char) textBuffer[i+3]; // add extension
+      }
+      if (console) {
+        DEBUGPORT.print(F("Opening: "));
+        DEBUGPORT.print(filename);
+        DEBUGPORT.println();
+      }
+      //fileTS = SD.open(filename, FILE_READ);
+      if(SD.exists(filename)) {
+        if (console) DEBUGPORT.println(F("File found"));
+        sendByte(0);
+      }
+      else{
+        if (console) DEBUGPORT.println(F("OPEN FAIL"));
+        sendByte(0xFF);
+        cks -= 0xFF;
+      }
+    }
+      break;
+//////////////////////////////////////////////////////////////////////////////
+    case FN_CLOSE_FILE: // 10 (Done)
+    {
+      sendByte(0); // Everything OK
+      if (console) DEBUGPORT.println(F("\r\nDone"));
+    }
+      break;
+//////////////////////////////////////////////////////////////////////////////
+    case FN_FIND_FIRST:  // 11 (Done)
+    {   
+      filecnt_off = textBuffer[0] + (selectedDevice * 2) -1; // goes from 0..3 for A: to D:
+      unit = textBuffer[0];
+      filenr = filecnt[filecnt_off];
+      if (console) {
+        DEBUGPORT.println(F("11 OK"));
+        DEBUGPORT.print(F("Reading Device [0,1]: "));
+        DEBUGPORT.print(selectedDevice);
+        DEBUGPORT.print(F(" on Unit [1,2]: "));
+        DEBUGPORT.println(unit);
+        DEBUGPORT.print(F("Files there: "));
+        DEBUGPORT.println(filenr);
+      }
+      if (filenr > 0){
+        switch (filecnt_off){
+        case 0: // A:
+          root = SD.open("/A/");
+          break;
+        case 1: // B:
+          root = SD.open("/B/");
+          break;
+        case 2: // C:
+          root = SD.open("/C/");
+          break;
+        case 3: // D:
+          root = SD.open("/D/");
+          break;
+        default:
+          break;
+        }
+        
+        File entry =  root.openNextFile();
+        //root.close();
+        filename = entry.name();
+        
+        if (console) {
+          DEBUGPORT.print(filename);
+          DEBUGPORT.println();
+        }
+        
+        sendByte(0);
+        sendByte(unit); // Unit #
+        cks -= unit;
+        for (i=0;i<8;i++){ // filename: send Name
+          temp = filename[i];
+          if (temp == '.') {
+            j = i+1; // save position extension (after dot)
+            break;
+          }
+          sendByte(temp);
+          cks -= temp;
+        }
+        for (;i<8;i++){ // pad the Rest with Space
+          temp = ' ';
+          sendByte(temp);
+          cks -= temp;
+        }          
+        for (;i<11;i++){ // filename: send extension
+          temp = filename[j++];
+          sendByte(temp);
+          cks -= temp;
+        }
+        for (i=0;i<24;i++){ // and 22 x 0 
+          sendByte(0);
+        }
+        filenr--;
+      }
+      else{ // nothing here
+        sendByte(0xFF);
+        cks -= 0xFF;
+        sendByte(unit); // Unit #
+        cks -= unit;
+        for (i=0;i<11;i++){ // filename: send 11 x 0x20 (8+3) (Name)
+          temp = 0x20;
+          sendByte(temp);
+          cks -= temp;
+        }
+        for (i=0;i<24;i++){ // and 22 x 0 
+          sendByte(0);
+        }        
+      }
+    }
+      break;
+////////////////////////////////////////////////////////////////////////////
+    case FN_FIND_NEXT:  // 12 (Done)
+    {
+      if (console) {
+        //DEBUGPORT.println(F("12 OK"));
+        DEBUGPORT.print(".");
+      }
+      if (filenr > 0){
+        File entry =  root.openNextFile();        
+        filename = entry.name();
+        
+        if (console) {
+          DEBUGPORT.print(filename);
+          DEBUGPORT.println();
+        }
+
+        sendByte(0);
+        sendByte(unit); // Unit #
+        cks -= unit;
+        for (i=0;i<8;i++){ // filename: send Name
+          temp = filename[i];
+          if (temp == '.') {
+            j = i+1; // save position extension (after dot)
+            break;
+          }
+          sendByte(temp);
+          cks -= temp;
+        }
+        for (;i<8;i++){ // pad the Rest with Space
+          temp = ' ';
+          sendByte(temp);
+          cks -= temp;
+        }          
+        for (;i<11;i++){ // filename: send extension
+          temp = filename[j++];
+          sendByte(temp);
+          cks -= temp;
+        }
+        for (i=0;i<24;i++){ // and 22 x 0 
+          sendByte(0);
+        }
+        filenr--;
+      }
+      else{ // nothing here
+        sendByte(0xFF);
+        cks -= 0xFF;
+        sendByte(unit); // Unit #
+        cks -= unit;
+        for (i=0;i<11;i++){ // filename: send 11 x 0x20 (8+3) (Name)
+          temp = 0x20;
+          sendByte(temp);
+          cks -= temp;
+        }
+        for (i=0;i<24;i++){ // and 22 x 0 
+          sendByte(0);
+        }
+        root.close();
+      }
+    }
+      break;
+//////////////////////////////////////////////////////////////////////////////
+    case FN_CREATE_FILE:  // 16 (Done)
+    {
+      if (console) {
+        DEBUGPORT.print(F("Creating: "));
+        DEBUGPORT.print(filename);
+        DEBUGPORT.println();
+      }
+      sendByte(0);
+    }
+      break;
+//////////////////////////////////////////////////////////////////////////////
+    case FN_RANDOM_READ:  // 21 (Done)
+    {
+      fileTS = SD.open(filename, FILE_READ);
+      if(fileTS) {
+        fileTS.seek(block * MAX_TEXT);
+        int result = fileTS.read(textBuffer, MAX_TEXT);
+        if (result < 0){
+          if (console) DEBUGPORT.println(F("OPEN & READ FAIL"));
+        }
+        else{
+          if (console) DEBUGPORT.print(".");      
+          sendByte(0);
+          sendByte(block);
+          cks -= (block);
+          block ++;
+          for(i = 0; i < MAX_TEXT; i++){
+            if (((block) == blocks) && (i >= _lo)){ // fill the rest with zeros
+              temp = 0;
+            }
+            else{
+              temp = textBuffer[i];
+            }
+            sendByte(temp);
+            cks -= temp;
+          }
+          sendByte(0);
+          if ((block) == blocks){
+            block = 0;
+            blocks = 0;
+          }
+        }
+        fileTS.close();
+      }
+      else{
+        if (console) {
+          DEBUGPORT.print(F("Opening '"));
+          DEBUGPORT.print(filename);
+          DEBUGPORT.println(F("' failed"));
+        }
+        sendByte(C_NAK);
+      }
+    }
+      break;
+//////////////////////////////////////////////////////////////////////////////
+    case FN_RANDOM_WRITE:  // 22
+    {
+      fileTS = SD.open(filename, FILE_WRITE);
+      if(fileTS) {
+        fileTS.seek(block * MAX_TEXT);
+        int result = fileTS.write(&textBuffer[2], MAX_TEXT);
+        if (result < 0){
+          if (console) DEBUGPORT.println(F("OPEN & WRITE FAIL"));
+        }
+        else{
+          if (console) DEBUGPORT.print(".");      
+          sendByte(0);
+          block ++;
+          sendByte(block);
+          cks -= block;
+          sendByte(0);
+        }
+        fileTS.close();
+      }
+      else{
+        if (console) {
+          DEBUGPORT.print(F("Opening '"));
+          DEBUGPORT.print(filename);
+          DEBUGPORT.println(F("' failed"));
+        }
+        sendByte(C_NAK);
+      }
+    }
+      break;
+//////////////////////////////////////////////////////////////////////////////
+    case FN_COMPUTE_FS:  // 23 (Done)
+    {
+      sendByte(0);
+      File entry = SD.open(filename, FILE_READ); // filename is set by Func. 0f
+      if (entry){
+        fsz = entry.size();
+        blocks = fsz / 128;
+        uint16_t fst = blocks * 128;
+        _lo = MAX_TEXT; // Must be >= 128 to not interfere
+        if (fst < fsz){ // Rounding up if not exactly
+          blocks++;
+          _lo = (fsz - fst); // save the rest or later
+        }
+        block = 0; // Initialize block
+        entry.close();
+        sendByte(0);      // High Byte of Blocks (should be always 0 unless the file is > 32k)
+        sendByte(blocks); // Low Byte of Blocks
+        cks -= blocks;
+
+        if (console) {
+          DEBUGPORT.print(F("Size: "));
+          DEBUGPORT.print(fsz);
+          DEBUGPORT.print(F(" Blocks: "));
+          DEBUGPORT.print(blocks);
+          DEBUGPORT.print(F(" Rest: "));
+          DEBUGPORT.print(_lo);
+          DEBUGPORT.println();
+        }
+      }
+      else{ // create new file
+        if (console) DEBUGPORT.println(F("OPEN FAIL"));
+        sendByte(0);
+        sendByte(0);
+        //sendByte(C_NAK);
+      }
+      sendByte(0);
+      sendByte(0);
+      sendByte(0);
+    }
+      break;
+//////////////////////////////////////////////////////////////////////////////
+    case FN_DISK_READ_SECTOR:  // 77
       returnStatus = diskReadSector(selectedDevice, textBuffer[0] - 1, 
                         textBuffer[1], textBuffer[2], textBuffer);
       if(!returnStatus) // error!
       {
         returnCode = BDOS_RC_READ_ERROR;
       }
-      for(int i = 0; i < MAX_TEXT; i++)
+      for(i = 0; i < MAX_TEXT; i++)
       {
-        uint8_t byt = textBuffer[i];
-        sendByte(byt);
-        cks -= byt;
+        temp = textBuffer[i];
+        sendByte(temp);
+        cks -= temp;
+      }
+      sendByte(returnCode);  // return code
+      cks -= 0;
+      break;
+////////////////////////////////////////////////////////////////////////////
+    case FN_DISK_WRITE_SECTOR: // 78
+      device = selectedDevice * 2 + textBuffer[0] - 1;
+      if (writeProtect[device] == true) {
+          returnCode = BDOS_RC_WRITE_ERROR; // not the correct code, but the PX is happy.
+      } else {
+          returnStatus = diskWriteSector(selectedDevice, textBuffer[0] - 1, 
+                         textBuffer[1], textBuffer[2], &textBuffer[4]);
+          if(!returnStatus) // error!
+          {
+              returnCode = BDOS_RC_WRITE_ERROR;
+          }
       }
       sendByte(returnCode);  // return code
       cks -= 0;
       break;
 //////////////////////////////////////////////////////////////////////////////
-    case FN_DISK_WRITE_SECTOR:
-    device = selectedDevice * 2 + textBuffer[0] - 1;
-    if (writeProtect[device] == true) {
-        returnCode = BDOS_RC_WRITE_ERROR; // not the correct code, but the PX is happy.
-    } else {
-        returnStatus = diskWriteSector(selectedDevice, textBuffer[0] - 1, 
-                       textBuffer[1], textBuffer[2], &textBuffer[4]);
-        if(!returnStatus) // error!
-        {
-            returnCode = BDOS_RC_WRITE_ERROR;
-        }
-    }
-    sendByte(returnCode);  // return code
-    cks -= 0;
-    break;
-//////////////////////////////////////////////////////////////////////////////
-    case FN_DISK_WRITE_HST:   // We always write, so nothing needs to flush
+    case FN_DISK_WRITE_HST: // 79 - We always write, so nothing needs to flush
       sendByte(0);
       break;
-//////////////////////////////////////////////////////////////////////////////
-    case FN_DISK_COPY:             // Not currently supported
+////////////////////////////////////////////////////////////////////////////
+    case FN_DISK_COPY:   // 7a - Not currently supported
       if (console) DEBUGPORT.println(F("FN_DISK_COPY not supported"));
       sendByte(C_NAK);
       break;
 //////////////////////////////////////////////////////////////////////////////
-    case FN_DISK_FORMAT:           // Not currently supported
+    case FN_DISK_FORMAT: // 7c - Not currently supported
       if (console) DEBUGPORT.println(F("FN_DISK_FORMAT not supported"));
       sendByte(C_NAK);
       break;
 //////////////////////////////////////////////////////////////////////////////
-    case FN_IMAGE_CMDS:
+    case FN_DISK_BOOT:   // 80 (Done)
+    {
+      
+      filename = "BOOT80.SYS";
+      if (console) {
+        DEBUGPORT.print(F("Opening '"));
+        DEBUGPORT.print(filename);
+        DEBUGPORT.println();
+      }
+
+      File boot = SD.open(filename, FILE_READ);
+      if(boot) {
+        sendByte(0);
+        uint16_t total = 0;
+        for (j = 0; j < 2; j++) {
+          int result = boot.read(textBuffer, MAX_TEXT);
+          if (result < 0){
+            if (console) DEBUGPORT.println(F("OPEN & READ FAIL"));
+          }
+          else{
+            if (console) DEBUGPORT.print(".");
+            //if (console) DEBUGPORT.println(F("OPEN & READ OK"));
+            for(i = 0; i < MAX_TEXT; i++){
+              total ++;
+              if (total > 255) break; // file is exactly 255 bytes
+              temp = textBuffer[i];
+              sendByte(temp);
+              cks -= temp;
+            }
+          }
+        }
+        if (console) DEBUGPORT.println();
+        boot.close();
+
+      }
+      else{
+        if (console) {
+          DEBUGPORT.print(F("Opening '"));
+          DEBUGPORT.print(filename);
+          DEBUGPORT.println(F("' failed"));
+        }
+        sendByte(C_NAK);
+      }
+    }
+      break;
+////////////////////////////////////////////////////////////////////////////
+    case FN_LOAD_OPEN:   // 81 (Done)
+    {
+      filename = "";
+      for (i = 0; i < 8; i++ ){
+        if (textBuffer[i] != 0x20){
+          filename += (char) textBuffer[i]; // add filename
+        }
+      }
+      //uint8_t reloc = textBuffer[0x0b];
+      filename += (char)hexNibble((textBuffer[0x0c]) >> 4);   // add address 
+      filename += (char)hexNibble((textBuffer[0x0c] & 0x0F)); // add address 
+      filename += '.';                    // add dot
+      for (i = 8; i < 11; i++ ){
+        filename += (char) textBuffer[i]; // add extension
+      }
+      if (console) {
+        DEBUGPORT.print(F("Opening '"));
+        DEBUGPORT.print(filename);
+        DEBUGPORT.println();
+      }
+      fileTS = SD.open(filename, FILE_READ);
+      if(fileTS) {
+        fileTS.seek(0);
+        int result = fileTS.read(textBuffer, MAX_TEXT); // only testing
+        if (result < 0){
+          if (console) DEBUGPORT.println(F("OPEN & READ FAIL"));
+        }
+        else{
+          if (console) DEBUGPORT.print(".");
+          sendByte(0);
+          blocks = fsz / MAX_TEXT; // = 0x21; // 4224/128
+          //blocks = 0x21;
+          block = 0; // Init block counter for later
+          _hi = (fsz & 0xFF00) >> 8;
+          _lo = (fsz & 0x00FF);
+          sendByte(_hi); // this is the filesize of DBASIC.SYS 4224 Byte = 0x1080
+          sendByte(_lo); // this is the filesize Low
+          cks -= _hi;
+          cks -= _lo;
+          fileTS.close();
+          if (console) {
+            DEBUGPORT.print("\r\nBlocks: ");
+            DEBUGPORT.print(blocks);
+            DEBUGPORT.print(" Hi: 0x");
+            DEBUGPORT.print(_hi, HEX);
+            DEBUGPORT.print(" Lo: 0x");
+            DEBUGPORT.print(_lo, HEX);
+            DEBUGPORT.println();
+          }
+        }
+      }
+      else{
+        if (console) {
+          DEBUGPORT.print(F("Opening '"));
+          DEBUGPORT.print(filename);
+          DEBUGPORT.println(F("' failed"));
+        }
+        sendByte(C_NAK);
+      }
+    }
+      break;
+////////////////////////////////////////////////////////////////////////////
+    case FN_READ_BLOCK:  // 83 (Done)
+    {
+      fileTS = SD.open(filename, FILE_READ);
+      if(fileTS) {
+        fileTS.seek(block * MAX_TEXT);
+        int result = fileTS.read(textBuffer, MAX_TEXT);
+        if (result < 0){
+          if (console) DEBUGPORT.println(F("OPEN & READ FAIL"));
+        }
+        else{
+          if (console) DEBUGPORT.print(".");
+          sendByte(0);
+          sendByte(1 + block);
+          cks -= (1 + block);
+          for(i = 0; i < MAX_TEXT; i++){
+            uint8_t byt = textBuffer[i];
+            sendByte(byt);
+            cks -= byt;
+          }
+          sendByte(0);
+          block ++;
+          if (block == blocks){
+            block = 0;
+            blocks = 0;
+            fileTS.close();
+            if (console) DEBUGPORT.println(F("\r\nDone"));
+          }
+        }
+      }
+      else{
+        if (console) {
+          DEBUGPORT.print(F("Opening '"));
+          DEBUGPORT.print(filename);
+          DEBUGPORT.println(F("' failed"));
+        }
+        sendByte(C_NAK);
+      }
+    }
+      break;
+////////////////////////////////////////////////////////////////////////////
+    case FN_IMAGE_CMDS:  // e0
       managementCommand = latestE0Command;
       setBufPointer = receivedSize + 1;
       if (console) {
@@ -489,8 +1065,9 @@ void sendText()
       sendByte(returnCode);
       cks -= 0;
       break;
-//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////    
     default:
+      if (console) DEBUGPORT.print(("Error - no case %02X", latestFNC));
       break;
   }
   sendByte(C_ETX);
@@ -498,7 +1075,6 @@ void sendText()
   cks -= C_ETX;
   sendByte(cks);
 }
-
 
 //////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// State Machine ////////////////////////////////
@@ -831,12 +1407,12 @@ void commandCollector() { // only used when console is active
   if (console && DEBUGPORT.available() > 0) {
     int inByte = DEBUGPORT.read();
     switch(inByte) {
-    case '\n':
+    case '\r':
       commandInterpreter();
       clearSerialBuffer();
       setBufPointer = 0;
       break;
-    case '\r':
+    case '\n':
       break;  // ignore carriage return
     default:
       serialBuffer[setBufPointer] = inByte;
@@ -853,7 +1429,7 @@ void commandCollector() { // only used when console is active
 
 void commandInterpreter() {
   byte bufByte = serialBuffer[0];
-  File root; // declaration inside the case doesn't work, why?
+  File root = SD.open("/"); // declaration inside the case doesn't work, why?
   
   switch(bufByte) {
     case 'C':
@@ -865,7 +1441,7 @@ void commandInterpreter() {
       break;
     case 'D':
     case 'd':
-      loadDirectory();
+      loadDirectory(root, 0);
       break;
     case 'H':
     case 'h':
@@ -906,13 +1482,14 @@ void commandInterpreter() {
   }
 }
 
-void printDirectory() {
-  root = SD.open("/");
-  DEBUGPORT.println(F("Root directory:"));
+uint8_t printDirectory(File dir, int numTabs) { // Modified to return filecount
+  uint8_t entries = 0;
+  //root = SD.open("/");
+  //DEBUGPORT.println(F("Root directory:"));
 
   while (console) {
 
-    File entry =  root.openNextFile();
+    File entry =  dir.openNextFile();
     if (! entry) {
       // no more files
       break;
@@ -921,9 +1498,14 @@ void printDirectory() {
     String name = entry.name();
     DEBUGPORT.print(name);
     if (entry.isDirectory()) {
-      DEBUGPORT.println("/");
+      //String name = entry.name();
+      DEBUGPORT.print("/");
+      //DEBUGPORT.println(name);
+      printDirectory(entry, numTabs + 1);
+      DEBUGPORT.println();
 //      printDirectory();
     } else {
+      entries++;
       // files have sizes, directories do not
       DEBUGPORT.print("\t");
       if (name.length() < 7) DEBUGPORT.print("\t");
@@ -931,12 +1513,13 @@ void printDirectory() {
     }
     entry.close();
   } 
-  root.close();
+  return entries;
+  //root.close();
 }
 
-void loadDirectory() {  // D[d]
+void loadDirectory(File dir, int numTabs) {  // D[d]
   if (consoleCommand) {
-    printDirectory();
+    printDirectory(dir, numTabs);
   } else {
     uint8_t dirOffset = 0;
     if (setBufPointer == 2) dirOffset = serialBuffer[1] - '0';
