@@ -3,15 +3,24 @@
 This is my fork of William R. Cooke's PFBDK sketch found at 
 http://wrcooke.net/projects/pfbdk/pfbdk.html
 
+Thanks to Robert Offner, the firmware now supports the HX-20. 
+
 The intend is to add some features making it somewhat more convenient to 
 use. The route will be very incremental to keep the basic functionality working.
 
 ![PFBDK on an Arduino Pro Micro in a PETG box](pfbdkPMicroV1.0_frontNewcase.jpg)
 
-For the Pro Micro a working PCB is created [PDF](PFBDK_promicro.kicad_sch.pdf), [KiCAD files](PFBDK_promicro_V1.0.complete.zip).
+For the Pro Micro a working PCB is created [PDF](PFBDK_promicro.kicad_sch.pdf), 
+[KiCAD files](PFBDK_promicro_V1.0.complete.zip).
 
 There are 3D-print files for the case and more pictures on my own page 
 at: https://electrickery.nl/comp/tf20/pxdisk/
+
+## HX-20 support
+
+Each HX-20 drive is now a directory on the SD-card; A, B, C and D. The HX-20
+requires to files for its Disk-BASIC; BOOT.80 and DBASICnn.SYS. These files 
+should be in the root directory  of the SD-card (only DBASICnn.SYS file). 
 
 ## Hardware extensions
 
@@ -24,7 +33,7 @@ The first feature is a command line on the debug/console port of the
 Arduino Mega and Pro Micro. The Mega is somewhat more expensive and larger,
 but easier to program. For normal operation the two are equal. The usage is now:
 
-	Usage (1.5.0):
+	Usage (2.0.0):
  	C                - temp debug for driveNames[][]
  	D                - SD-card root directory
  	H                - this help
