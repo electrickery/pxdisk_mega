@@ -1,12 +1,14 @@
 # PFBDK - Arduino Mega simulator of the Epson's Epsp based disk drives
 
 This is my fork of William R. Cooke's PFBDK sketch found at 
-http://wrcooke.net/projects/pfbdk/pfbdk.html
+http://wrcooke.net/projects/pfbdk/pfbdk.html. PFBDK emulates four floppy drives 
+for the Epson PX-4 and PX-8 CP/M portable computers.
 
-Thanks to Robert Offner, the firmware now supports the HX-20. 
+Thanks to Robert Offner, the firmware now also supports the Epson HX-20 computer. 
 
-The intend is to add some features making it somewhat more convenient to 
-use. The route will be very incremental to keep the basic functionality working.
+The intend of this project is to add some features to PFBDK making it somewhat more 
+convenient to use. The route will be very incremental to keep the basic functionality 
+working.
 
 ![PFBDK on an Arduino Pro Micro in a PETG box](pfbdkPMicroV1.0_frontNewcase.jpg)
 
