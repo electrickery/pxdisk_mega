@@ -139,6 +139,8 @@ Creating applications consisting of two computers talking to each other is
 more complex than making just a program. I used this solution to inspect the
 traffic between the PX-4 and the PFBDK: https://github.com/electrickery/DualSerialMonitor
 
+## External serial daisy-chain circuit
 
+[The circuit to be used for single-ended PFBDK boards like version 1.1](PX-multiDeviceSerialInterfaceSimplified.kicad_sch.pdf)
 
 fjkraan@electrickery.nl, 2024-12-16
