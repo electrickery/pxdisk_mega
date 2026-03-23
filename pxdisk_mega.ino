@@ -33,7 +33,7 @@
 // There are for sure Problems with files of > 255 Records (32640 Bytes) (is this even possible on the HX-20?)
 
 
-#define MAJOR_VERSION 2
+#define MAJOR_VERSION 3
 #define MINOR_VERSION 0
 #define PATCH         0
 
@@ -88,16 +88,35 @@ void setup()
   pinMode(E_LED, OUTPUT);
   pinMode(F_LED, OUTPUT);
   pinMode(G_LED, OUTPUT);
+  pinMode(DE_UNIT, INPUT_PULLUP);
+  pinMode(FG_UNIT, INPUT_PULLUP);
+
+  if (digitalRead(DE_UNIT)) {
+    unit31 = true;
+  } else {
+    unit31 = false;
+  }
+  if (digitalRead(FG_UNIT)) {
+    unit32 = true;
+  } else {
+    unit32 = false;
+  }
+  if (console) {
+    unitReport();
+  }
+  unitActive = true;
+
+  if (!(unit31 || unit32)) {
+    if (console)  DEBUGPORT.println("No enabled units. Halting...");
+    halted();
+  }
 
   PXPORT.begin(PXBAUDRATE);
   int sd = SD.begin(CS_PIN);
 
   if (!sd) {
     if (console) DEBUGPORT.println("No SD-card, halted.");
-    while(1) {
-      digitalWrite(DEBUGLED, !digitalRead(DEBUGLED));
-      delay(250L);
-    }
+    halted();
   }
 
   // TODO:  Why in the haydes do we need to do this?
@@ -110,6 +129,7 @@ void setup()
   diskReadSector(1, 0, 0, 1, textBuffer);
   diskReadSector(1, 1, 0, 1, textBuffer);
 
+  // HX-20 file mode
   root = SD.open("/A/");
   if (console) {
     DEBUGPORT.println("A:");
@@ -223,7 +243,7 @@ bool diskWriteSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, 
   bool rtn = true;
   uint8_t device = unit * 2 + disk;
 //  File dsk = SD.open(diskNames[device], FILE_WRITE);
-  File dsk = SD.open(diskNames[device], O_READ | O_WRITE | O_CREAT);
+  File dsk = SD.open(diskNames[device], (O_READ | O_WRITE | O_CREAT));
   if(dsk)
   {
     dsk.seek(track * DISK_BYTES_PER_TRACK + (sector - 1) * DISK_BYTES_PER_SECTOR);
@@ -310,12 +330,27 @@ bool isValidSID(uint8_t id)
 //////////////////////////////////////////////////////////////////////////////
 bool isValidDID(uint8_t id)
 {
-  bool rtn = false;
   if(id == 0x31 || id == 0x32)    // 31=First Disk (D,E) 32=Second Disk (F,G)
   {
-    rtn = true;
+    return true;
   }
-  return rtn;
+  return false;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+///  @fn isEnabledDID
+///  @param[in] uint8_t id:  The ID number to check
+///
+///  @return bool: true if id is enabled as a destination ID
+///
+///  @brief  Destination ID can be to disk unit 1 or 2
+///
+//////////////////////////////////////////////////////////////////////////////
+bool isActiveDID(uint8_t id)
+{
+  if (id == 0x31 && unit31) return true;
+  if (id == 0x32 && unit32) return true;
+  return false;  
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1149,6 +1184,15 @@ void stateMachine(uint8_t b)
         oldState = state;
         state = ST_ERR;
       }
+      unitActive = false;
+      if (b == 0x31 && unit31) unitActive = true;
+      if (b == 0x32 && unit32) unitActive = true;
+      if (console) {
+          DEBUGPORT.print("Message is for Unit ");
+          DEBUGPORT.print(b, HEX);
+          DEBUGPORT.print(" which is locally ");
+          DEBUGPORT.println(unitActive ? " active." : " inactive.");
+      }
       break;
 //////////////////////////////////////////////////////////////////////////////
     case ST_PS_DID:
@@ -1167,13 +1211,13 @@ void stateMachine(uint8_t b)
     case ST_PS_SID:
       if(b == C_ENQ)
       {
-          sendByte(C_ACK);
+          if (unitActive) sendByte(C_ACK);
           selectedDevice = latestDID - MY_ID_1;
           state = ST_PS_ENQ;
       }
       else
       {
-        sendByte(C_NAK);
+        if (unitActive) sendByte(C_NAK);
         oldState = state;
         state = ST_ERR;
       }
@@ -1211,6 +1255,11 @@ void stateMachine(uint8_t b)
         latestCKS += b;
         latestDID = b;
         state = ST_HD_DID;
+      } else {
+        if (console) {
+          DEBUGPORT.print("DID not valid: ");
+          DEBUGPORT.println(b, HEX);
+        }
       }
       break;
 //////////////////////////////////////////////////////////////////////////////
@@ -1220,6 +1269,12 @@ void stateMachine(uint8_t b)
         latestSID = b;
         latestCKS += b;
         state = ST_HD_SID;
+      } else {
+//        unitActive = false;
+        if (console) {
+          DEBUGPORT.print("SID not valid: ");
+          DEBUGPORT.println(b, HEX);
+        }
       }
       break;
 //////////////////////////////////////////////////////////////////////////////
@@ -1232,6 +1287,10 @@ void stateMachine(uint8_t b)
       }
       else
       {
+        if (console) {
+          DEBUGPORT.print("FNC not valid: ");
+          DEBUGPORT.println(b, HEX);
+        }
         oldState = state;
         state = ST_ERR;
       }
@@ -1248,12 +1307,12 @@ void stateMachine(uint8_t b)
       latestCKS += b;
       if(latestCKS == 0)
       {
-        sendByte(C_ACK);
+        if (unitActive) sendByte(C_ACK);
         state = ST_HD_CKS;
       }
       else
       {
-        sendByte(C_NAK);
+        if (unitActive) sendByte(C_NAK);
         oldState = state;
         state = ST_ERR;
       }
@@ -1307,7 +1366,7 @@ void stateMachine(uint8_t b)
       latestCKS += b;
       if(latestCKS == 0)
       {
-         sendByte(C_ACK);
+         if (unitActive) sendByte(C_ACK);
          state = ST_TX_CKS; 
       }
       else
@@ -1320,7 +1379,7 @@ void stateMachine(uint8_t b)
     case ST_TX_CKS:
       if(b == C_EOT)
       {
-        sendHeader();
+        if (unitActive) sendHeader();
         state = ST_SENT_HDR;
       }
       else
@@ -1332,7 +1391,7 @@ void stateMachine(uint8_t b)
    case ST_SENT_HDR:
      if(b == C_ACK)
      {
-       sendText();
+       if (unitActive) sendText();
        state = ST_SENT_TXT;
      }
      else
@@ -1346,12 +1405,12 @@ void stateMachine(uint8_t b)
     case ST_SENT_TXT:
       if(b == C_ACK)
       {
-        sendByte(C_EOT);
+        if (unitActive) sendByte(C_EOT);
         state = ST_IDLE;
       }
       else if(b == C_NAK)
       {
-        sendText();
+        if (unitActive) sendText();
       }
       debugLedOff();
     break;
@@ -1359,7 +1418,7 @@ void stateMachine(uint8_t b)
     case ST_ERR:
     if (console) {
       DEBUGPORT.print("Err; old state was: ");
-      DEBUGPORT.print(oldState); 
+      DEBUGPORT.println(oldState); 
     }
     state = ST_IDLE;
     break;
@@ -1458,6 +1517,7 @@ void commandInterpreter() {
       DEBUGPORT.println(F(" Nnnnnnnnn.eee    - create an image file nnnnnnnn.eee"));
       DEBUGPORT.println(F(" P[dw]            - write protect drive d; w=0 RW, w=1 RO"));
       DEBUGPORT.println(F(" R                - temp reset Arduino"));
+      DEBUGPORT.println(F(" U                - report unit state"));
       break;
     case 'M':
     case 'm':
@@ -1474,6 +1534,10 @@ void commandInterpreter() {
     case 'R':
     case 'r':
       resetFunc();
+      break;
+    case 'U':
+    case 'u':
+      unitReport();
       break;
     default:
       DEBUGPORT.print(bufByte);
@@ -1875,6 +1939,11 @@ bool checkFilePresence(String filename) {
 }
 
 void driveLedOn(uint8_t drive) {
+  // skip if unit31 is inactive AND drive is either 0 OR 1
+  if (!unit31 && (drive == 0 || drive == 1)) return;
+  // skip if unit32 is inactive AND drive is either 2 OR 3
+  if (!unit32 && (drive == 2 || drive == 3)) return;
+
   ledOn = true;
   ledTime = millis() + LEDTIMEOUT;
   switch(drive) {
@@ -1939,4 +2008,18 @@ void dumpTextBuffer() { // should be called only when console is true
     DEBUGPORT.print(" ");
   }
   DEBUGPORT.println();
+}
+
+void unitReport() {
+  DEBUGPORT.print("Unit 0x31: ");
+  DEBUGPORT.println(unit31 ? "enabled" : "disabled");
+  DEBUGPORT.print("Unit 0x32: ");
+  DEBUGPORT.println(unit32 ? "enabled" : "disabled");
+}
+
+void halted() {
+    while(1) {
+      digitalWrite(DEBUGLED, !digitalRead(DEBUGLED));
+      delay(250L);       
+    }
 }

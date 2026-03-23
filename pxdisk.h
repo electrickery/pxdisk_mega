@@ -20,6 +20,8 @@ bool console = true;
 #define F_LED           11
 #define G_LED           12
 #define DEBUGLED        13
+#define DE_UNIT          7
+#define FG_UNIT          8
 #endif
 
 // The Pro Micro is equal to the Micro or Leonardo but smaller (and cheaper)
@@ -35,6 +37,25 @@ bool console = true;
 #define F_LED            4
 #define G_LED            5
 #define DEBUGLED         6
+#define DE_UNIT          7
+#define FG_UNIT          8
+#endif
+
+// The Uno R4 MINIMA
+#if defined(ARDUINO_UNOR4_MINIMA)
+#define BOARD_MICRO
+#define BOARDTEXT       "Uno R4 Minima"
+#define PXPORT          Serial1    // pin 0 & 1
+#define DEBUG           true       // Change to true for debugging
+#define DEBUGPORT       Serial     // USB port
+#define CS_PIN          10         // SD card CS pin
+#define D_LED            2
+#define E_LED            3
+#define F_LED            4
+#define G_LED            5
+#define DEBUGLED         6
+#define DE_UNIT          7
+#define FG_UNIT          8
 #endif
 
 #define MAX_TEXT   128
@@ -186,6 +207,10 @@ char diskNames[DRIVECOUNT][DRIVENAMESIZE] =
 bool writeProtect[DRIVECOUNT] = {0, 0, 0, 0};
 
 bool ledOn;
+
+bool unit31;      // true when the first unit (default names D: and E:) is enabled
+bool unit32;      // true when the second unit (default names F: and G:) is enabled
+bool unitActive;  // distinguish between exchanges for this unit(s) and other units in the stateMachine
 
 uint32_t ledTime;
 #define LEDTIMEOUT 250

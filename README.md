@@ -18,6 +18,17 @@ For the Pro Micro a working PCB is created [PDF](PFBDK_promicro.kicad_sch.pdf),
 There are 3D-print files for the case and more pictures on my own page 
 at: https://electrickery.nl/comp/tf20/pxdisk/
 
+## Unit select option
+
+The four drives used to be split over two units, unit 0 (0x31) being drive D: and E:
+and unit 1 (0x32) being drive F: and G:. That is A:, B:, C: and D: for the HX-20. The 
+original Epson configuration allowed for daisy-chaining units.
+For rapid development of software controlling the PFBDK drives, I wanted to be able
+to use one PFBDK unit for two drives next to vfloppy for the other two drives. A
+jumper or switch on the PFBDK unit can disable two drives. Some extra logic adds the
+serial line daisy chaining. Currently there is a provisional merge unit, but a newer 
+to be designed board will have this integrated.
+
 ## HX-20 support
 
 Each HX-20 drive is now a directory on the SD-card; A, B, C and D. The HX-20
@@ -36,7 +47,7 @@ The first feature is a command line on the debug/console port of the
 Arduino Mega and Pro Micro. The Mega is somewhat more expensive and larger,
 but easier to program. For normal operation the two are equal. The usage is now:
 
-	Usage (2.0.0):
+	Usage (3.0.0):
  	C                - temp debug for driveNames[][]
  	D                - SD-card root directory
  	H                - this help
@@ -44,6 +55,7 @@ but easier to program. For normal operation the two are equal. The usage is now:
  	Nnnnnnnnn.eee    - create an image file nnnnnnnn.eee
  	P[dw]            - write protect drive d; w=0 RW, w=1 RO
  	R                - temp reset Arduino
+ 	U                - report unit state
 
 Note that most changes made with these tools are not persistent (image 
 creation being the exception) and will be lost when switching 
