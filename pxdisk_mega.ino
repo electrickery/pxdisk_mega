@@ -202,6 +202,7 @@ bool diskReadSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, u
 {
   bool rtn = true;
   uint8_t device = unit * 2 + disk;
+  if (!unitActive) return rtn;  // do the remainder only for an active unit
   File dsk = SD.open(diskNames[device], FILE_READ);
 //  if (console) DEBUGPORT.write("R:");
 //  if (console) DEBUGPORT.println(diskNames[device]);
@@ -242,6 +243,7 @@ bool diskWriteSector(uint8_t unit, uint8_t disk, uint8_t track, uint8_t sector, 
 {
   bool rtn = true;
   uint8_t device = unit * 2 + disk;
+  if (!unitActive) return rtn;  // do the remainder only for an active unit
 //  File dsk = SD.open(diskNames[device], FILE_WRITE);
   File dsk = SD.open(diskNames[device], (O_READ | O_WRITE | O_CREAT));
   if(dsk)
