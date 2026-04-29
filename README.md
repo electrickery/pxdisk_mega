@@ -1,3 +1,5 @@
+*Moved repository to https://codeberg.org/electrickery/pfbdk*
+
 # PFBDK - Arduino Mega simulator of the Epson's Epsp based disk drives
 
 This is my fork of William R. Cooke's PFBDK sketch found at 
